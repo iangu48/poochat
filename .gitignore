@@ -1,0 +1,6 @@
+.DS_Store
+.env
+mobile/.expo
+mobile/.expo-shared
+mobile/node_modules
+mobile/dist
