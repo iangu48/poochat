@@ -1,5 +1,5 @@
 import { Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '../components/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import type { LeaderboardRow, Profile } from '../types/domain';
 import { styles } from './styles';
 

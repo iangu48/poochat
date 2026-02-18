@@ -1,5 +1,5 @@
 import { Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '../components/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import { styles } from './styles';
 
 export type Tab = 'home' | 'social' | 'account';
@@ -23,7 +23,7 @@ type TabButtonProps = {
   tab: Tab;
   value: Tab;
   label: string;
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
   onPress: (tab: Tab) => void;
 };
 

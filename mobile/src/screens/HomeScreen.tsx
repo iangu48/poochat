@@ -1,5 +1,5 @@
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '../components/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import type { FeedItem, PoopEntry } from '../types/domain';
 import { styles } from './styles';
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '../components/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import { ChatScreen, type ChatRoute } from './ChatScreen';
 import { styles } from './styles';
 import type { FeedItem, IncomingFriendRequest, Profile, ChatMessage, ChatRoom, ChatRoomInvite } from '../types/domain';

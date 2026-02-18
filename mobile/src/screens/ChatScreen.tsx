@@ -1,5 +1,5 @@
 import { Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '../components/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import type { ChatMessage, ChatRoom, ChatRoomInvite } from '../types/domain';
 import { styles } from './styles';
 
