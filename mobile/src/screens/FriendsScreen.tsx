@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { ChatScreen, type ChatRoute } from './ChatScreen';
 import { styles } from './styles';
 import type { FeedItem, IncomingFriendRequest, Profile, ChatMessage, ChatRoom, ChatRoomInvite } from '../types/domain';
@@ -89,16 +89,6 @@ export function FriendsScreen(props: Props) {
 
   return (
     <ScrollView contentContainerStyle={[styles.screen, styles.socialWrap]}>
-      {hasFriendDropdown && (
-        <Pressable
-          style={styles.dropdownBackdrop}
-          onPress={() => {
-            setShowFriendActions(false);
-            setShowIncomingRequests(false);
-          }}
-        />
-      )}
-
       <View style={styles.socialHeader}>
         <Text style={styles.title}>Social</Text>
         <View style={styles.segmentRow}>
@@ -170,44 +160,6 @@ export function FriendsScreen(props: Props) {
             </TouchableOpacity>
           </View>
 
-          {hasFriendDropdown && (
-            <View style={[styles.floatingDropdown, styles.socialDropdown]}>
-              {showFriendActions && (
-                <>
-                  <Text style={styles.cardTitle}>Add Friend</Text>
-                  <TextInput
-                    style={styles.input}
-                    autoCapitalize="none"
-                    value={friendUsername}
-                    onChangeText={onFriendUsernameChange}
-                    placeholder="username"
-                    placeholderTextColor="#8b949e"
-                  />
-                  <TouchableOpacity style={styles.button} onPress={onSendFriendRequest}>
-                    <Text style={styles.buttonText}>Send Request</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-
-              {showIncomingRequests && (
-                <>
-                  <Text style={styles.cardTitle}>Incoming Requests</Text>
-                  {incomingRequests.map((request) => (
-                    <View key={request.id} style={styles.dropdownItem}>
-                      <Text style={styles.cardTitle}>
-                        {request.from.displayName} (@{request.from.username})
-                      </Text>
-                      <TouchableOpacity style={styles.button} onPress={() => onAcceptRequest(request.id)}>
-                        <Text style={styles.buttonText}>Accept</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                  {incomingRequests.length === 0 && <Text style={styles.muted}>No incoming requests.</Text>}
-                </>
-              )}
-            </View>
-          )}
-
           {!!friendStatus && <Text style={styles.muted}>{friendStatus}</Text>}
           {!!friendError && <Text style={styles.error}>{friendError}</Text>}
 
@@ -225,6 +177,60 @@ export function FriendsScreen(props: Props) {
           {friends.length === 0 && <Text style={styles.muted}>No accepted friends yet.</Text>}
         </View>
       )}
+
+      <Modal
+        transparent
+        visible={hasFriendDropdown}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowFriendActions(false);
+          setShowIncomingRequests(false);
+        }}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => {
+            setShowFriendActions(false);
+            setShowIncomingRequests(false);
+          }}
+        >
+          <Pressable style={[styles.modalCard, styles.socialModalCard]} onPress={() => {}}>
+            {showFriendActions && (
+              <>
+                <Text style={styles.cardTitle}>Add Friend</Text>
+                <TextInput
+                  style={styles.input}
+                  autoCapitalize="none"
+                  value={friendUsername}
+                  onChangeText={onFriendUsernameChange}
+                  placeholder="username"
+                  placeholderTextColor="#8b949e"
+                />
+                <TouchableOpacity style={styles.button} onPress={onSendFriendRequest}>
+                  <Text style={styles.buttonText}>Send Request</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {showIncomingRequests && (
+              <>
+                <Text style={styles.cardTitle}>Incoming Requests</Text>
+                {incomingRequests.map((request) => (
+                  <View key={request.id} style={styles.dropdownItem}>
+                    <Text style={styles.cardTitle}>
+                      {request.from.displayName} (@{request.from.username})
+                    </Text>
+                    <TouchableOpacity style={styles.button} onPress={() => onAcceptRequest(request.id)}>
+                      <Text style={styles.buttonText}>Accept</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {incomingRequests.length === 0 && <Text style={styles.muted}>No incoming requests.</Text>}
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }

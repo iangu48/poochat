@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { ChatMessage, ChatRoom, ChatRoomInvite } from '../types/domain';
 import { styles } from './styles';
 
@@ -91,17 +91,6 @@ export function ChatScreen(props: Props) {
 
   return (
     <ScrollView contentContainerStyle={[styles.screen, styles.chatScreenWrap]}>
-      {(hasInboxDropdown || (chatRoute === 'room' && showRoomActions)) && (
-        <Pressable
-          style={styles.dropdownBackdrop}
-          onPress={() => {
-            setShowCreateGroup(false);
-            setShowInviteQueue(false);
-            setShowApprovalQueue(false);
-            setShowRoomActions(false);
-          }}
-        />
-      )}
 
       {chatRoute === 'inbox' && (
         <>
@@ -143,62 +132,6 @@ export function ChatScreen(props: Props) {
               <Text style={styles.buttonText}>Refresh Inbox</Text>
             </TouchableOpacity>
 
-            {hasInboxDropdown && (
-              <View style={[styles.floatingDropdown, styles.floatingDropdownInbox]}>
-                {showCreateGroup && (
-                  <>
-                    <Text style={styles.cardTitle}>Create Invite-Only Group</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={groupName}
-                      onChangeText={setGroupName}
-                      placeholder="Group name"
-                      placeholderTextColor="#8b949e"
-                    />
-                    <TouchableOpacity style={styles.button} onPress={onCreateGroup}>
-                      <Text style={styles.buttonText}>Create Group</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                {showInviteQueue && (
-                  <>
-                    <Text style={styles.cardTitle}>Invites Waiting On You</Text>
-                    {approvedInvitesForMe.map((invite) => (
-                      <View key={invite.id} style={styles.dropdownItem}>
-                        <Text style={styles.cardTitle}>Room: {inviteRoomLabels[invite.roomId] ?? invite.roomId.slice(0, 8)}</Text>
-                        <Text style={styles.muted}>Proposer: {inviteParticipantLabels[invite.proposerId] ?? invite.proposerId}</Text>
-                        <TouchableOpacity style={styles.button} onPress={() => onJoinApprovedInvite(invite.id)}>
-                          <Text style={styles.buttonText}>Join Room</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                    {approvedInvitesForMe.length === 0 && <Text style={styles.muted}>No invites ready to join.</Text>}
-                  </>
-                )}
-
-                {showApprovalQueue && (
-                  <>
-                    <Text style={styles.cardTitle}>Approvals Required</Text>
-                    {approvalsRequired.map((invite) => (
-                      <View key={invite.id} style={styles.dropdownItem}>
-                        <Text style={styles.cardTitle}>Room: {inviteRoomLabels[invite.roomId] ?? invite.roomId.slice(0, 8)}</Text>
-                        <Text style={styles.muted}>Invitee: {inviteParticipantLabels[invite.inviteeId] ?? invite.inviteeId}</Text>
-                        <View style={styles.row}>
-                          <TouchableOpacity style={styles.button} onPress={() => onApproveInvite(invite.id)}>
-                            <Text style={styles.buttonText}>Approve</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={styles.buttonDangerInline} onPress={() => onRejectInvite(invite.id)}>
-                            <Text style={styles.buttonText}>Reject</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ))}
-                    {approvalsRequired.length === 0 && <Text style={styles.muted}>No approvals needed.</Text>}
-                  </>
-                )}
-              </View>
-            )}
           </View>
 
           <Text style={styles.sectionTitle}>Your Chat List</Text>
@@ -238,41 +171,6 @@ export function ChatScreen(props: Props) {
             <Text style={styles.muted}>Room: {activeRoomId || 'No room selected'}</Text>
             <Text style={styles.muted}>Your role: {activeRoomRole ?? 'none'}</Text>
 
-            {showRoomActions && (
-              <View style={[styles.floatingDropdown, styles.floatingDropdownRoom]}>
-                <Text style={styles.cardTitle}>Invite / Manage Group</Text>
-                <Text style={styles.label}>Propose Invite By Username</Text>
-                <TextInput
-                  style={styles.input}
-                  autoCapitalize="none"
-                  value={inviteUsername}
-                  onChangeText={setInviteUsername}
-                  placeholder="username"
-                  placeholderTextColor="#8b949e"
-                />
-                <TouchableOpacity style={styles.button} onPress={onProposeInvite}>
-                  <Text style={styles.buttonText}>Propose Invite</Text>
-                </TouchableOpacity>
-                <Text style={styles.sectionTitle}>Pending Invites (This Room)</Text>
-                {pendingInvites.map((invite) => (
-                  <View key={invite.id} style={styles.dropdownItem}>
-                    <Text style={styles.cardTitle}>Invitee: {inviteParticipantLabels[invite.inviteeId] ?? invite.inviteeId}</Text>
-                    <Text style={styles.muted}>Proposed by: {inviteParticipantLabels[invite.proposerId] ?? invite.proposerId}</Text>
-                    {(activeRoomRole === 'owner' || activeRoomRole === 'admin') && (
-                      <View style={styles.row}>
-                        <TouchableOpacity style={styles.button} onPress={() => onApproveInvite(invite.id)}>
-                          <Text style={styles.buttonText}>Approve</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.buttonDangerInline} onPress={() => onRejectInvite(invite.id)}>
-                          <Text style={styles.buttonText}>Reject</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                ))}
-                {pendingInvites.length === 0 && <Text style={styles.muted}>No pending invites in this room.</Text>}
-              </View>
-            )}
           </View>
 
           <TouchableOpacity style={styles.buttonSecondary} onPress={onRefreshMessages}>
@@ -301,6 +199,124 @@ export function ChatScreen(props: Props) {
           {chatRows.length === 0 && <Text style={styles.muted}>No messages yet in this room.</Text>}
         </>
       )}
+
+      <Modal
+        transparent
+        visible={hasInboxDropdown}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowCreateGroup(false);
+          setShowInviteQueue(false);
+          setShowApprovalQueue(false);
+        }}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => {
+            setShowCreateGroup(false);
+            setShowInviteQueue(false);
+            setShowApprovalQueue(false);
+          }}
+        >
+          <Pressable style={[styles.modalCard, styles.chatModalCard]} onPress={() => {}}>
+            {showCreateGroup && (
+              <>
+                <Text style={styles.cardTitle}>Create Invite-Only Group</Text>
+                <TextInput
+                  style={styles.input}
+                  value={groupName}
+                  onChangeText={setGroupName}
+                  placeholder="Group name"
+                  placeholderTextColor="#8b949e"
+                />
+                <TouchableOpacity style={styles.button} onPress={onCreateGroup}>
+                  <Text style={styles.buttonText}>Create Group</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {showInviteQueue && (
+              <>
+                <Text style={styles.cardTitle}>Invites Waiting On You</Text>
+                {approvedInvitesForMe.map((invite) => (
+                  <View key={invite.id} style={styles.dropdownItem}>
+                    <Text style={styles.cardTitle}>Room: {inviteRoomLabels[invite.roomId] ?? invite.roomId.slice(0, 8)}</Text>
+                    <Text style={styles.muted}>Proposer: {inviteParticipantLabels[invite.proposerId] ?? invite.proposerId}</Text>
+                    <TouchableOpacity style={styles.button} onPress={() => onJoinApprovedInvite(invite.id)}>
+                      <Text style={styles.buttonText}>Join Room</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {approvedInvitesForMe.length === 0 && <Text style={styles.muted}>No invites ready to join.</Text>}
+              </>
+            )}
+
+            {showApprovalQueue && (
+              <>
+                <Text style={styles.cardTitle}>Approvals Required</Text>
+                {approvalsRequired.map((invite) => (
+                  <View key={invite.id} style={styles.dropdownItem}>
+                    <Text style={styles.cardTitle}>Room: {inviteRoomLabels[invite.roomId] ?? invite.roomId.slice(0, 8)}</Text>
+                    <Text style={styles.muted}>Invitee: {inviteParticipantLabels[invite.inviteeId] ?? invite.inviteeId}</Text>
+                    <View style={styles.row}>
+                      <TouchableOpacity style={styles.button} onPress={() => onApproveInvite(invite.id)}>
+                        <Text style={styles.buttonText}>Approve</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.buttonDangerInline} onPress={() => onRejectInvite(invite.id)}>
+                        <Text style={styles.buttonText}>Reject</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+                {approvalsRequired.length === 0 && <Text style={styles.muted}>No approvals needed.</Text>}
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={chatRoute === 'room' && showRoomActions}
+        animationType="fade"
+        onRequestClose={() => setShowRoomActions(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowRoomActions(false)}>
+          <Pressable style={[styles.modalCard, styles.chatModalCard]} onPress={() => {}}>
+            <Text style={styles.cardTitle}>Invite / Manage Group</Text>
+            <Text style={styles.label}>Propose Invite By Username</Text>
+            <TextInput
+              style={styles.input}
+              autoCapitalize="none"
+              value={inviteUsername}
+              onChangeText={setInviteUsername}
+              placeholder="username"
+              placeholderTextColor="#8b949e"
+            />
+            <TouchableOpacity style={styles.button} onPress={onProposeInvite}>
+              <Text style={styles.buttonText}>Propose Invite</Text>
+            </TouchableOpacity>
+            <Text style={styles.sectionTitle}>Pending Invites (This Room)</Text>
+            {pendingInvites.map((invite) => (
+              <View key={invite.id} style={styles.dropdownItem}>
+                <Text style={styles.cardTitle}>Invitee: {inviteParticipantLabels[invite.inviteeId] ?? invite.inviteeId}</Text>
+                <Text style={styles.muted}>Proposed by: {inviteParticipantLabels[invite.proposerId] ?? invite.proposerId}</Text>
+                {(activeRoomRole === 'owner' || activeRoomRole === 'admin') && (
+                  <View style={styles.row}>
+                    <TouchableOpacity style={styles.button} onPress={() => onApproveInvite(invite.id)}>
+                      <Text style={styles.buttonText}>Approve</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.buttonDangerInline} onPress={() => onRejectInvite(invite.id)}>
+                      <Text style={styles.buttonText}>Reject</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))}
+            {pendingInvites.length === 0 && <Text style={styles.muted}>No pending invites in this room.</Text>}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }

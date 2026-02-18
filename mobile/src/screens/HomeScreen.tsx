@@ -1,4 +1,4 @@
-import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { FeedItem, PoopEntry } from '../types/domain';
 import { styles } from './styles';
 
@@ -90,25 +90,36 @@ export function HomeScreen(props: Props) {
         <Text style={styles.fabText}>{showEntryComposer ? 'x' : '+'}</Text>
       </TouchableOpacity>
 
-      {showEntryComposer && (
-        <View style={styles.entryComposer}>
-          <Text style={styles.cardTitle}>Add New Entry</Text>
-          <Text style={styles.label}>Bristol Type (1-7)</Text>
-          <TextInput style={styles.input} keyboardType="number-pad" value={bristolType} onChangeText={onBristolTypeChange} />
-          <Text style={styles.label}>Rating (1-5)</Text>
-          <TextInput style={styles.input} keyboardType="number-pad" value={rating} onChangeText={onRatingChange} />
-          <Text style={styles.label}>Note (optional)</Text>
-          <TextInput style={styles.input} value={note} onChangeText={onNoteChange} />
-          <View style={styles.row}>
-            <TouchableOpacity style={styles.button} onPress={onAddEntry}>
-              <Text style={styles.buttonText}>Save Entry</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.buttonSecondary} onPress={onCloseComposer}>
-              <Text style={styles.buttonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <Modal transparent visible={showEntryComposer} animationType="fade" onRequestClose={onCloseComposer}>
+        <Pressable style={styles.entryModalBackdrop} onPress={onCloseComposer}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={20}>
+            <Pressable style={[styles.modalCard, styles.entryModalCard]} onPress={() => {}}>
+              <View style={styles.entryComposer}>
+                <Text style={styles.cardTitle}>Add New Entry</Text>
+                <Text style={styles.label}>Bristol Type (1-7)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  value={bristolType}
+                  onChangeText={onBristolTypeChange}
+                />
+                <Text style={styles.label}>Rating (1-5)</Text>
+                <TextInput style={styles.input} keyboardType="number-pad" value={rating} onChangeText={onRatingChange} />
+                <Text style={styles.label}>Note (optional)</Text>
+                <TextInput style={styles.input} value={note} onChangeText={onNoteChange} />
+                <View style={styles.row}>
+                  <TouchableOpacity style={styles.button} onPress={onAddEntry}>
+                    <Text style={styles.buttonText}>Save Entry</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.buttonSecondary} onPress={onCloseComposer}>
+                    <Text style={styles.buttonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </>
   );
 }

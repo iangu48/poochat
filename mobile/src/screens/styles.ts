@@ -102,15 +102,27 @@ export const styles = StyleSheet.create({
     marginTop: -2,
   },
   entryComposer: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 96,
     backgroundColor: '#161b22',
     borderWidth: 1,
     borderColor: '#30363d',
     borderRadius: 12,
     padding: 12,
+  },
+  entryComposerWrap: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 24,
+  },
+  entryModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'flex-end',
+    paddingBottom: 16,
+  },
+  entryModalCard: {
+    marginTop: 0,
+    marginBottom: 0,
   },
   card: {
     borderColor: '#30363d',
@@ -164,7 +176,7 @@ export const styles = StyleSheet.create({
   },
   chatFloatingHost: {
     position: 'relative',
-    zIndex: 10,
+    zIndex: 120,
   },
   chatScreenWrap: {
     position: 'relative',
@@ -175,7 +187,7 @@ export const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 40,
+    zIndex: 110,
   },
   floatingDropdown: {
     position: 'absolute',
@@ -187,7 +199,7 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     padding: 10,
-    zIndex: 50,
+    zIndex: 130,
   },
   floatingDropdownInbox: {
     top: 116,
@@ -266,5 +278,26 @@ export const styles = StyleSheet.create({
   },
   socialDropdown: {
     top: 56,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'flex-start',
+  },
+  modalCard: {
+    marginHorizontal: 16,
+    marginTop: 120,
+    backgroundColor: '#161b22',
+    borderColor: '#30363d',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    maxHeight: '70%',
+  },
+  socialModalCard: {
+    marginTop: 180,
+  },
+  chatModalCard: {
+    marginTop: 130,
   },
 });
