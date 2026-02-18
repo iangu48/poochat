@@ -1,4 +1,5 @@
 import { Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '../components/Ionicons';
 import type { LeaderboardRow, Profile } from '../types/domain';
 import { styles } from './styles';
 
@@ -49,7 +50,10 @@ export function AccountScreen({
         {profile.shareFeed ? 'Friends can see your entries in feed.' : 'Your entries are hidden from friend feed.'}
       </Text>
       <TouchableOpacity style={styles.buttonSecondary} onPress={onToggleShareFeed}>
-        <Text style={styles.buttonText}>{profile.shareFeed ? 'Hide My Feed Activity' : 'Share My Feed Activity'}</Text>
+        <View style={styles.buttonContentRow}>
+          <Ionicons name={profile.shareFeed ? 'eye-off' : 'eye'} size={16} color="#fff" />
+          <Text style={styles.buttonText}>{profile.shareFeed ? 'Hide My Feed Activity' : 'Share My Feed Activity'}</Text>
+        </View>
       </TouchableOpacity>
       <Text style={styles.sectionTitle}>Your Ranking</Text>
       <Text style={styles.muted}>
@@ -72,8 +76,8 @@ export function AccountScreen({
         >
           <Text style={styles.buttonText}>{previousYear}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.buttonSecondary} onPress={onRefreshLeaderboard}>
-          <Text style={styles.buttonText}>Refresh</Text>
+        <TouchableOpacity style={[styles.iconButton, styles.iconButtonGhost]} onPress={onRefreshLeaderboard} accessibilityLabel="Refresh leaderboard">
+          <Ionicons name="refresh" size={18} color="#f0f6fc" />
         </TouchableOpacity>
       </View>
 
@@ -92,7 +96,10 @@ export function AccountScreen({
       {leaderboardRows.length === 0 && !leaderboardLoading && <Text style={styles.muted}>No leaderboard rows.</Text>}
       {!!error && <Text style={styles.error}>{error}</Text>}
       <TouchableOpacity style={styles.buttonDanger} onPress={onSignOut}>
-        <Text style={styles.buttonText}>Sign Out</Text>
+        <View style={styles.buttonContentRow}>
+          <Ionicons name="log-out-outline" size={16} color="#fff" />
+          <Text style={styles.buttonText}>Sign Out</Text>
+        </View>
       </TouchableOpacity>
     </View>
   );

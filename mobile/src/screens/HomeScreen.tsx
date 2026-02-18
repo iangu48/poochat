@@ -1,4 +1,5 @@
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '../components/Ionicons';
 import type { FeedItem, PoopEntry } from '../types/domain';
 import { styles } from './styles';
 
@@ -50,8 +51,8 @@ export function HomeScreen(props: Props) {
     <>
       <ScrollView contentContainerStyle={styles.screen}>
         <Text style={styles.title}>Recent Entries</Text>
-        <TouchableOpacity style={styles.buttonSecondary} onPress={onRefreshEntries}>
-          <Text style={styles.buttonText}>Refresh Entries</Text>
+        <TouchableOpacity style={[styles.iconButton, styles.iconButtonGhost]} onPress={onRefreshEntries} accessibilityLabel="Refresh entries">
+          <Ionicons name="refresh" size={18} color="#f0f6fc" />
         </TouchableOpacity>
         {loadingEntries && <Text style={styles.muted}>Loading...</Text>}
         {!!entryError && <Text style={styles.error}>{entryError}</Text>}
@@ -70,8 +71,8 @@ export function HomeScreen(props: Props) {
         {entries.length === 0 && <Text style={styles.muted}>No entries yet.</Text>}
 
         <Text style={styles.title}>Friends Feed</Text>
-        <TouchableOpacity style={styles.buttonSecondary} onPress={onRefreshFeed}>
-          <Text style={styles.buttonText}>Refresh Feed</Text>
+        <TouchableOpacity style={[styles.iconButton, styles.iconButtonGhost]} onPress={onRefreshFeed} accessibilityLabel="Refresh friends feed">
+          <Ionicons name="refresh" size={18} color="#f0f6fc" />
         </TouchableOpacity>
         {!!feedError && <Text style={styles.error}>{feedError}</Text>}
         {recentFeedItems.map((item) => (
@@ -87,7 +88,7 @@ export function HomeScreen(props: Props) {
       </ScrollView>
 
       <TouchableOpacity style={styles.fab} onPress={onToggleComposer}>
-        <Text style={styles.fabText}>{showEntryComposer ? 'x' : '+'}</Text>
+        <Ionicons name={showEntryComposer ? 'close' : 'add'} size={28} color="#ffffff" />
       </TouchableOpacity>
 
       <Modal transparent visible={showEntryComposer} animationType="fade" onRequestClose={onCloseComposer}>
@@ -109,10 +110,16 @@ export function HomeScreen(props: Props) {
                 <TextInput style={styles.input} value={note} onChangeText={onNoteChange} />
                 <View style={styles.row}>
                   <TouchableOpacity style={styles.button} onPress={onAddEntry}>
-                    <Text style={styles.buttonText}>Save Entry</Text>
+                    <View style={styles.buttonContentRow}>
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                      <Text style={styles.buttonText}>Save Entry</Text>
+                    </View>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.buttonSecondary} onPress={onCloseComposer}>
-                    <Text style={styles.buttonText}>Cancel</Text>
+                    <View style={styles.buttonContentRow}>
+                      <Ionicons name="close" size={16} color="#fff" />
+                      <Text style={styles.buttonText}>Cancel</Text>
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>

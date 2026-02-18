@@ -78,6 +78,65 @@ export const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
   },
+  buttonContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  iconButtonPrimary: {
+    backgroundColor: '#238636',
+    borderWidth: 1,
+    borderColor: '#2ea043',
+  },
+  iconButtonSecondary: {
+    backgroundColor: '#1f6feb',
+    borderWidth: 1,
+    borderColor: '#388bfd',
+  },
+  iconButtonDanger: {
+    backgroundColor: '#da3633',
+    borderWidth: 1,
+    borderColor: '#f85149',
+  },
+  iconButtonGhost: {
+    backgroundColor: '#21262d',
+    borderWidth: 1,
+    borderColor: '#30363d',
+  },
+  inlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  inlineLeft: {
+    flex: 1,
+    marginRight: 8,
+  },
+  inlineAction: {
+    marginRight: 0,
+    marginBottom: 0,
+    alignSelf: 'center',
+  },
+  messageComposerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  messageInput: {
+    flex: 1,
+    marginBottom: 0,
+    marginRight: 8,
+  },
   buttonDisabled: {
     opacity: 0.55,
   },

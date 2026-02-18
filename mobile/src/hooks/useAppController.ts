@@ -96,6 +96,8 @@ export function useAppController() {
   const [approvedInvitesForMe, setApprovedInvitesForMe] = useState<ChatRoomInvite[]>([]);
   const [inviteParticipantLabels, setInviteParticipantLabels] = useState<Record<string, string>>({});
   const [inviteRoomLabels, setInviteRoomLabels] = useState<Record<string, string>>({});
+  const [chatRoomLabels, setChatRoomLabels] = useState<Record<string, string>>({});
+  const [chatUserLabels, setChatUserLabels] = useState<Record<string, string>>({});
   const [messageBody, setMessageBody] = useState('');
   const [chatRows, setChatRows] = useState<ChatMessage[]>([]);
   const [chatError, setChatError] = useState('');
@@ -148,6 +150,10 @@ export function useAppController() {
       setPendingInvites([]);
       setApprovedInvitesForMe([]);
       setApprovalsRequired([]);
+      setInviteParticipantLabels({});
+      setInviteRoomLabels({});
+      setChatRoomLabels({});
+      setChatUserLabels({});
       setAccountLeaderboardRows([]);
       setAccountLeaderboardError('');
       setCurrentYearRank(null);
@@ -179,6 +185,7 @@ export function useAppController() {
           const incoming = asRealtimeMessage(payload);
           if (!incoming) return;
           setChatRows((prev) => mergeMessages(prev, incoming));
+          void hydrateChatUserLabels([incoming.senderId]);
         }
       )
       .subscribe();
@@ -274,11 +281,95 @@ export function useAppController() {
     try {
       const rooms = await chatService.listRooms();
       setChatRooms(rooms);
+      try {
+        await hydrateChatRoomLabels(rooms);
+      } catch {
+        // Keep room list usable even if profile label hydration fails.
+      }
       return rooms;
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to load rooms.');
       return [];
     }
+  }
+
+  async function hydrateChatUserLabels(userIds: string[]): Promise<Record<string, string>> {
+    const ids = Array.from(new Set(userIds.map((id) => id.trim()).filter((id) => Boolean(id))));
+    if (ids.length === 0) return {};
+
+    const { data, error } = await supabase.from('profiles').select('id,username,display_name').in('id', ids);
+    if (error) throw error;
+
+    const next: Record<string, string> = {};
+    for (const row of data ?? []) {
+      next[String(row.id)] = formatProfileLabel(row.display_name, row.username);
+    }
+    if (Object.keys(next).length > 0) {
+      setChatUserLabels((prev) => ({ ...prev, ...next }));
+    }
+    return next;
+  }
+
+  async function hydrateChatRoomLabels(rooms: ChatRoom[]): Promise<void> {
+    const myUserId = session?.user.id;
+    const next: Record<string, string> = {};
+    for (const room of rooms) {
+      if (room.type !== 'dm') {
+        next[room.id] = room.name?.trim() || 'Untitled Group';
+      }
+    }
+
+    const directRooms = rooms.filter((room) => room.type === 'dm');
+    if (directRooms.length === 0 || !myUserId) {
+      for (const room of directRooms) {
+        next[room.id] = room.name?.trim() || 'Direct Chat';
+      }
+      setChatRoomLabels((prev) => ({ ...prev, ...next }));
+      return;
+    }
+
+    const dmRoomIds = directRooms.map((room) => room.id);
+    const { data, error } = await supabase
+      .from('chat_room_members')
+      .select('room_id,user_id')
+      .in('room_id', dmRoomIds);
+    if (error) throw error;
+
+    const otherUserByRoom = new Map<string, string>();
+    for (const row of data ?? []) {
+      const roomId = String(row.room_id);
+      const userId = String(row.user_id);
+      if (!roomId || !userId) continue;
+      if (userId !== myUserId) {
+        otherUserByRoom.set(roomId, userId);
+      } else if (!otherUserByRoom.has(roomId)) {
+        otherUserByRoom.set(roomId, userId);
+      }
+    }
+
+    const otherUserIds = Array.from(
+      new Set(
+        directRooms
+          .map((room) => otherUserByRoom.get(room.id))
+          .filter((id): id is string => Boolean(id) && id !== myUserId)
+      )
+    );
+    let hydratedUserLabels: Record<string, string> = {};
+    if (otherUserIds.length > 0) {
+      hydratedUserLabels = await hydrateChatUserLabels(otherUserIds);
+    }
+
+    for (const room of directRooms) {
+      const otherUserId = otherUserByRoom.get(room.id);
+      const label =
+        (otherUserId && hydratedUserLabels[otherUserId]) ||
+        (otherUserId && chatUserLabels[otherUserId]) ||
+        room.name?.trim() ||
+        'Direct Chat';
+      next[room.id] = label;
+    }
+
+    setChatRoomLabels((prev) => ({ ...prev, ...next }));
   }
 
   async function refreshApprovalsRequired(rooms: ChatRoom[] = chatRooms): Promise<void> {
@@ -358,7 +449,7 @@ export function useAppController() {
 
     const next: Record<string, string> = {};
     for (const row of data ?? []) {
-      next[row.id as string] = `${String(row.display_name)} (@${String(row.username)})`;
+      next[String(row.id)] = formatProfileLabel(row.display_name, row.username);
     }
     setInviteParticipantLabels((prev) => ({ ...prev, ...next }));
   }
@@ -372,8 +463,9 @@ export function useAppController() {
 
     const next: Record<string, string> = {};
     for (const row of data ?? []) {
-      const fallback = row.room_type === 'dm' ? 'Direct Room' : 'Untitled Group';
-      next[row.id as string] = row.name ? String(row.name) : fallback;
+      const roomId = String(row.id);
+      const fallback = row.room_type === 'dm' ? 'Direct Chat' : 'Untitled Group';
+      next[roomId] = chatRoomLabels[roomId] ?? (row.name ? String(row.name) : fallback);
     }
     setInviteRoomLabels((prev) => ({ ...prev, ...next }));
   }
@@ -696,6 +788,11 @@ export function useAppController() {
     try {
       const rows = await chatService.listMessages(roomId.trim(), 100);
       setChatRows(rows);
+      try {
+        await hydrateChatUserLabels(rows.map((row) => row.senderId));
+      } catch {
+        // Ignore participant label failures; messages should still render.
+      }
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to load messages.');
     }
@@ -711,6 +808,11 @@ export function useAppController() {
     try {
       const sent = await chatService.sendMessage(activeRoomId.trim(), messageBody.trim());
       setChatRows((prev) => mergeMessages(prev, sent));
+      try {
+        await hydrateChatUserLabels([sent.senderId]);
+      } catch {
+        // Ignore participant label failures for sent messages.
+      }
       setMessageBody('');
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to send message.');
@@ -828,6 +930,8 @@ export function useAppController() {
     pendingInvites,
     inviteParticipantLabels,
     inviteRoomLabels,
+    chatRoomLabels,
+    chatUserLabels,
     showCreateGroup,
     setShowCreateGroup,
     showInviteQueue,
@@ -845,6 +949,7 @@ export function useAppController() {
     chatRows,
     chatStatus,
     chatError,
+    currentUserId: session?.user.id ?? '',
     handleRefreshChatInbox,
     handleCreateGroup,
     handleJoinApprovedInvite,
@@ -901,4 +1006,13 @@ function normalizePhone(input: string): string {
   if (/^\d{10}$/.test(usDigits)) return `+1${usDigits}`;
   if (/^\d{11,15}$/.test(usDigits)) return `+${usDigits}`;
   throw new Error('Use phone format like +15551234567.');
+}
+
+function formatProfileLabel(displayName: unknown, username: unknown): string {
+  const cleanDisplay = typeof displayName === 'string' ? displayName.trim() : '';
+  const cleanUsername = typeof username === 'string' ? username.trim() : '';
+  if (cleanDisplay && cleanUsername) return `${cleanDisplay} (@${cleanUsername})`;
+  if (cleanDisplay) return cleanDisplay;
+  if (cleanUsername) return `@${cleanUsername}`;
+  return 'Member';
 }

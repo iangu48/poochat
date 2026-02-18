@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '../components/Ionicons';
 import type { TextInput as TextInputHandle } from 'react-native';
 import { styles } from './styles';
 
@@ -57,13 +58,19 @@ export function AuthScreen(props: Props) {
           style={authMethod === 'phone' ? styles.button : styles.buttonSecondary}
           onPress={() => setAuthMethod('phone')}
         >
-          <Text style={styles.buttonText}>Phone</Text>
+          <View style={styles.buttonContentRow}>
+            <Ionicons name="call" size={16} color="#fff" />
+            <Text style={styles.buttonText}>Phone</Text>
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
           style={authMethod === 'email' ? styles.button : styles.buttonSecondary}
           onPress={() => setAuthMethod('email')}
         >
-          <Text style={styles.buttonText}>Email</Text>
+          <View style={styles.buttonContentRow}>
+            <Ionicons name="mail" size={16} color="#fff" />
+            <Text style={styles.buttonText}>Email</Text>
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -82,9 +89,12 @@ export function AuthScreen(props: Props) {
             onPress={onSendPhoneOtp}
             disabled={authOtpCooldownSec > 0}
           >
-            <Text style={styles.buttonText}>
-              {authOtpCooldownSec > 0 ? `Send Again In ${authOtpCooldownSec}s` : 'Send SMS Code'}
-            </Text>
+            <View style={styles.buttonContentRow}>
+              <Ionicons name="paper-plane" size={16} color="#fff" />
+              <Text style={styles.buttonText}>
+                {authOtpCooldownSec > 0 ? `Send Again In ${authOtpCooldownSec}s` : 'Send SMS Code'}
+              </Text>
+            </View>
           </TouchableOpacity>
           <TextInput
             ref={otpInputRef}
@@ -101,7 +111,10 @@ export function AuthScreen(props: Props) {
             onPress={onVerifyPhoneOtp}
             disabled={authVerifyingOtp}
           >
-            <Text style={styles.buttonText}>{authVerifyingOtp ? 'Verifying...' : 'Verify Code'}</Text>
+            <View style={styles.buttonContentRow}>
+              <Ionicons name="checkmark-circle" size={16} color="#fff" />
+              <Text style={styles.buttonText}>{authVerifyingOtp ? 'Verifying...' : 'Verify Code'}</Text>
+            </View>
           </TouchableOpacity>
         </>
       )}
@@ -127,10 +140,16 @@ export function AuthScreen(props: Props) {
           />
           <View style={styles.row}>
             <TouchableOpacity style={styles.button} onPress={() => onAuth('sign-in')}>
-              <Text style={styles.buttonText}>Sign In</Text>
+              <View style={styles.buttonContentRow}>
+                <Ionicons name="log-in-outline" size={16} color="#fff" />
+                <Text style={styles.buttonText}>Sign In</Text>
+              </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.buttonSecondary} onPress={() => onAuth('sign-up')}>
-              <Text style={styles.buttonText}>Sign Up</Text>
+              <View style={styles.buttonContentRow}>
+                <Ionicons name="person-add" size={16} color="#fff" />
+                <Text style={styles.buttonText}>Sign Up</Text>
+              </View>
             </TouchableOpacity>
           </View>
         </>

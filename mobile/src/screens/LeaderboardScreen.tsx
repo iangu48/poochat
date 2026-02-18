@@ -1,4 +1,5 @@
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '../components/Ionicons';
 import type { LeaderboardRow } from '../types/domain';
 import { styles } from './styles';
 
@@ -17,7 +18,10 @@ export function LeaderboardScreen({ year, rows, error, onYearChange, onLoad }: P
       <Text style={styles.label}>Year</Text>
       <TextInput style={styles.input} keyboardType="number-pad" value={year} onChangeText={onYearChange} />
       <TouchableOpacity style={styles.button} onPress={onLoad}>
-        <Text style={styles.buttonText}>Load</Text>
+        <View style={styles.buttonContentRow}>
+          <Ionicons name="search" size={16} color="#fff" />
+          <Text style={styles.buttonText}>Load</Text>
+        </View>
       </TouchableOpacity>
       {!!error && <Text style={styles.error}>{error}</Text>}
       {rows.map((row) => (

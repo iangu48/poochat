@@ -1,4 +1,5 @@
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '../components/Ionicons';
 import { styles } from './styles';
 
 type Props = {
@@ -36,11 +37,17 @@ export function OnboardingScreen(props: Props) {
         onChangeText={onDisplayNameChange}
       />
       <TouchableOpacity style={styles.button} onPress={onSave}>
-        <Text style={styles.buttonText}>Save Profile</Text>
+        <View style={styles.buttonContentRow}>
+          <Ionicons name="checkmark" size={16} color="#fff" />
+          <Text style={styles.buttonText}>Save Profile</Text>
+        </View>
       </TouchableOpacity>
       {!!error && <Text style={styles.error}>{error}</Text>}
       <TouchableOpacity style={styles.buttonDanger} onPress={onSignOut}>
-        <Text style={styles.buttonText}>Sign Out</Text>
+        <View style={styles.buttonContentRow}>
+          <Ionicons name="log-out-outline" size={16} color="#fff" />
+          <Text style={styles.buttonText}>Sign Out</Text>
+        </View>
       </TouchableOpacity>
     </View>
   );

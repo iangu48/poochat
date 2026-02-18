@@ -124,6 +124,9 @@ export default function App() {
           pendingInvites={app.pendingInvites}
           inviteParticipantLabels={app.inviteParticipantLabels}
           inviteRoomLabels={app.inviteRoomLabels}
+          chatRoomLabels={app.chatRoomLabels}
+          chatUserLabels={app.chatUserLabels}
+          currentUserId={app.currentUserId}
           showCreateGroup={app.showCreateGroup}
           setShowCreateGroup={app.setShowCreateGroup}
           showInviteQueue={app.showInviteQueue}
