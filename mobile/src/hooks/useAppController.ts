@@ -24,6 +24,7 @@ import type { Tab } from '../screens/TabBar';
 import type { ChatRoute } from '../screens/ChatScreen';
 
 type AuthMethod = 'phone' | 'email';
+export type SocialSection = 'feed' | 'friends' | 'chat';
 
 export function useAppController() {
   const [session, setSession] = useState<Session | null>(null);
@@ -47,6 +48,7 @@ export function useAppController() {
   const chatService = useMemo(() => createSupabaseChatService(supabase), []);
 
   const [tab, setTab] = useState<Tab>('home');
+  const [socialSection, setSocialSection] = useState<SocialSection>('friends');
 
   const [myProfile, setMyProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -70,9 +72,14 @@ export function useAppController() {
   const [friendError, setFriendError] = useState('');
   const [friendStatus, setFriendStatus] = useState('');
 
-  const [year, setYear] = useState(String(new Date().getFullYear()));
-  const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
-  const [leaderboardError, setLeaderboardError] = useState('');
+  const currentYear = new Date().getFullYear();
+  const previousYear = currentYear - 1;
+  const [selectedLeaderboardYear, setSelectedLeaderboardYear] = useState<number>(currentYear);
+  const [accountLeaderboardRows, setAccountLeaderboardRows] = useState<LeaderboardRow[]>([]);
+  const [accountLeaderboardError, setAccountLeaderboardError] = useState('');
+  const [accountLeaderboardLoading, setAccountLeaderboardLoading] = useState(false);
+  const [currentYearRank, setCurrentYearRank] = useState<number | null>(null);
+  const [previousYearRank, setPreviousYearRank] = useState<number | null>(null);
 
   const [activeRoomId, setActiveRoomId] = useState('');
   const [chatRoute, setChatRoute] = useState<ChatRoute>('inbox');
@@ -141,6 +148,10 @@ export function useAppController() {
       setPendingInvites([]);
       setApprovedInvitesForMe([]);
       setApprovalsRequired([]);
+      setAccountLeaderboardRows([]);
+      setAccountLeaderboardError('');
+      setCurrentYearRank(null);
+      setPreviousYearRank(null);
       return;
     }
     void bootstrapAuthedState();
@@ -208,7 +219,11 @@ export function useAppController() {
       if (profile) {
         await Promise.all([refreshEntries(), refreshFeed(), refreshFriends(), refreshMyApprovedInvites()]);
         const rooms = await refreshRooms();
-        await refreshApprovalsRequired(rooms);
+        await Promise.all([
+          refreshApprovalsRequired(rooms),
+          refreshAccountRankings(profile.id),
+          loadAccountLeaderboard(profile.id, selectedLeaderboardYear),
+        ]);
       }
     } catch (error) {
       setProfileError(error instanceof Error ? error.message : 'Failed to load profile state.');
@@ -439,7 +454,13 @@ export function useAppController() {
         displayName: onboardingDisplayName,
       });
       setMyProfile(profile);
-      await Promise.all([refreshEntries(), refreshFriends(), refreshFeed()]);
+      await Promise.all([
+        refreshEntries(),
+        refreshFriends(),
+        refreshFeed(),
+        refreshAccountRankings(profile.id),
+        loadAccountLeaderboard(profile.id, selectedLeaderboardYear),
+      ]);
     } catch (error) {
       setProfileError(error instanceof Error ? error.message : 'Failed to save profile.');
     }
@@ -511,7 +532,8 @@ export function useAppController() {
       const roomId = await chatService.createOrGetDirectRoom(friendUserId);
       setActiveRoomId(roomId);
       setChatRoute('room');
-      setTab('chat');
+      setSocialSection('chat');
+      setTab('social');
       const rooms = await refreshRooms();
       await Promise.all([loadMessages(roomId), refreshPendingInvites(roomId), refreshActiveRoomRole(roomId)]);
       await refreshApprovalsRequired(rooms);
@@ -623,14 +645,46 @@ export function useAppController() {
     }
   }
 
-  async function handleLoadLeaderboard(): Promise<void> {
-    setLeaderboardError('');
+  async function refreshAccountRankings(profileId: string): Promise<void> {
     try {
-      const rows = await leaderboardService.listYear(Number(year));
-      setLeaderboardRows(rows);
-    } catch (error) {
-      setLeaderboardError(error instanceof Error ? error.message : 'Failed to load leaderboard.');
+      const [rowsCurrent, rowsPrevious] = await Promise.all([
+        leaderboardService.listYear(currentYear),
+        leaderboardService.listYear(previousYear),
+      ]);
+      setCurrentYearRank(rowsCurrent.find((row) => row.subjectId === profileId)?.rank ?? null);
+      setPreviousYearRank(rowsPrevious.find((row) => row.subjectId === profileId)?.rank ?? null);
+    } catch {
+      setCurrentYearRank(null);
+      setPreviousYearRank(null);
     }
+  }
+
+  async function loadAccountLeaderboard(profileId: string, year: number): Promise<void> {
+    setAccountLeaderboardLoading(true);
+    setAccountLeaderboardError('');
+    try {
+      const rows = await leaderboardService.listYear(year);
+      setAccountLeaderboardRows(rows);
+      const myRank = rows.find((row) => row.subjectId === profileId)?.rank ?? null;
+      if (year === currentYear) setCurrentYearRank(myRank);
+      if (year === previousYear) setPreviousYearRank(myRank);
+    } catch (error) {
+      setAccountLeaderboardError(error instanceof Error ? error.message : 'Failed to load leaderboard.');
+      setAccountLeaderboardRows([]);
+    } finally {
+      setAccountLeaderboardLoading(false);
+    }
+  }
+
+  async function handleSelectLeaderboardYear(year: number): Promise<void> {
+    setSelectedLeaderboardYear(year);
+    if (!myProfile) return;
+    await loadAccountLeaderboard(myProfile.id, year);
+  }
+
+  async function refreshAccountLeaderboard(): Promise<void> {
+    if (!myProfile) return;
+    await loadAccountLeaderboard(myProfile.id, selectedLeaderboardYear);
   }
 
   async function loadMessages(roomId: string): Promise<void> {
@@ -649,7 +703,7 @@ export function useAppController() {
 
   async function handleSendMessage(): Promise<void> {
     if (!activeRoomId.trim()) {
-      setChatError('Open chat from Friends tab first.');
+      setChatError('Open chat from Social tab first.');
       return;
     }
     if (!messageBody.trim()) return;
@@ -695,6 +749,8 @@ export function useAppController() {
     session,
     tab,
     setTab,
+    socialSection,
+    setSocialSection,
     authMethod,
     setAuthMethod,
     authEmail,
@@ -750,11 +806,16 @@ export function useAppController() {
     refreshFriends,
     handleAcceptRequest,
     handleOpenDirectChat,
-    year,
-    setYear,
-    leaderboardRows,
-    leaderboardError,
-    handleLoadLeaderboard,
+    currentYear,
+    previousYear,
+    selectedLeaderboardYear,
+    accountLeaderboardRows,
+    accountLeaderboardError,
+    accountLeaderboardLoading,
+    currentYearRank,
+    previousYearRank,
+    handleSelectLeaderboardYear,
+    refreshAccountLeaderboard,
     chatRoute,
     setChatRoute,
     activeRoomId,

@@ -2,10 +2,8 @@ import { SafeAreaView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
-import { ChatScreen } from './src/screens/ChatScreen';
 import { FriendsScreen } from './src/screens/FriendsScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
-import { LeaderboardScreen } from './src/screens/LeaderboardScreen';
 import { LoadingScreen } from './src/screens/LoadingScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { styles } from './src/screens/styles';
@@ -97,8 +95,13 @@ export default function App() {
         />
       )}
 
-      {app.tab === 'friends' && (
+      {app.tab === 'social' && (
         <FriendsScreen
+          socialSection={app.socialSection}
+          setSocialSection={app.setSocialSection}
+          feedItems={app.feedItems}
+          feedError={app.feedError}
+          onRefreshFeed={() => void app.refreshFeed()}
           friendUsername={app.friendUsername}
           friends={app.friends}
           incomingRequests={app.incomingRequests}
@@ -109,21 +112,6 @@ export default function App() {
           onRefreshFriends={() => void app.refreshFriends()}
           onAcceptRequest={(friendshipId) => void app.handleAcceptRequest(friendshipId)}
           onOpenDirectChat={(friendUserId) => void app.handleOpenDirectChat(friendUserId)}
-        />
-      )}
-
-      {app.tab === 'leaderboard' && (
-        <LeaderboardScreen
-          year={app.year}
-          rows={app.leaderboardRows}
-          error={app.leaderboardError}
-          onYearChange={app.setYear}
-          onLoad={() => void app.handleLoadLeaderboard()}
-        />
-      )}
-
-      {app.tab === 'chat' && (
-        <ChatScreen
           chatRoute={app.chatRoute}
           setChatRoute={app.setChatRoute}
           activeRoomId={app.activeRoomId}
@@ -170,6 +158,16 @@ export default function App() {
           email={app.session.user.email}
           profile={app.myProfile}
           error={app.profileError}
+          currentYear={app.currentYear}
+          previousYear={app.previousYear}
+          currentYearRank={app.currentYearRank}
+          previousYearRank={app.previousYearRank}
+          selectedLeaderboardYear={app.selectedLeaderboardYear}
+          leaderboardRows={app.accountLeaderboardRows}
+          leaderboardError={app.accountLeaderboardError}
+          leaderboardLoading={app.accountLeaderboardLoading}
+          onSelectLeaderboardYear={(year) => void app.handleSelectLeaderboardYear(year)}
+          onRefreshLeaderboard={() => void app.refreshAccountLeaderboard()}
           onToggleShareFeed={() => void app.handleToggleShareFeed()}
           onSignOut={() => void app.handleSignOut()}
         />

@@ -231,4 +231,40 @@ export const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginBottom: 8,
   },
+  socialWrap: {
+    position: 'relative',
+  },
+  socialHeader: {
+    marginBottom: 8,
+  },
+  segmentRow: {
+    flexDirection: 'row',
+    backgroundColor: '#161b22',
+    borderRadius: 10,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: '#30363d',
+    marginBottom: 8,
+  },
+  segmentButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  segmentButtonActive: {
+    backgroundColor: '#1f6feb',
+  },
+  segmentText: {
+    color: '#f0f6fc',
+    fontWeight: '600',
+  },
+  socialActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+  },
+  socialDropdown: {
+    top: 56,
+  },
 });

@@ -1,7 +1,7 @@
 import { Text, TouchableOpacity, View } from 'react-native';
 import { styles } from './styles';
 
-export type Tab = 'home' | 'friends' | 'leaderboard' | 'chat' | 'account';
+export type Tab = 'home' | 'social' | 'account';
 
 type Props = {
   tab: Tab;
@@ -12,9 +12,7 @@ export function TabBar({ tab, onTabChange }: Props) {
   return (
     <View style={styles.tabRow}>
       <TabButton tab={tab} label="Home" value="home" onPress={onTabChange} />
-      <TabButton tab={tab} label="Friends" value="friends" onPress={onTabChange} />
-      <TabButton tab={tab} label="Leaderboard" value="leaderboard" onPress={onTabChange} />
-      <TabButton tab={tab} label="Chat" value="chat" onPress={onTabChange} />
+      <TabButton tab={tab} label="Social" value="social" onPress={onTabChange} />
       <TabButton tab={tab} label="Account" value="account" onPress={onTabChange} />
     </View>
   );

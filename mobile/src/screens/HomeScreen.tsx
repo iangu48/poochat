@@ -44,6 +44,7 @@ export function HomeScreen(props: Props) {
     onAddEntry,
     onCloseComposer,
   } = props;
+  const recentFeedItems = feedItems.slice(0, 5);
 
   return (
     <>
@@ -73,7 +74,7 @@ export function HomeScreen(props: Props) {
           <Text style={styles.buttonText}>Refresh Feed</Text>
         </TouchableOpacity>
         {!!feedError && <Text style={styles.error}>{feedError}</Text>}
-        {feedItems.map((item) => (
+        {recentFeedItems.map((item) => (
           <View key={item.entryId} style={styles.card}>
             <Text style={styles.cardTitle}>
               {item.displayName} (@{item.username})
@@ -82,7 +83,7 @@ export function HomeScreen(props: Props) {
             <Text style={styles.cardBody}>Rating: {item.rating}</Text>
           </View>
         ))}
-        {feedItems.length === 0 && <Text style={styles.muted}>No feed events yet.</Text>}
+        {recentFeedItems.length === 0 && <Text style={styles.muted}>No feed events yet.</Text>}
       </ScrollView>
 
       <TouchableOpacity style={styles.fab} onPress={onToggleComposer}>
