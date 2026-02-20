@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { TextInput as TextInputHandle } from 'react-native';
 import { styles } from './styles';
@@ -19,6 +19,8 @@ type Props = {
   setAuthPassword: (value: string) => void;
   authOtpCooldownSec: number;
   authVerifyingOtp: boolean;
+  authSubmitting: boolean;
+  authSendingOtp: boolean;
   authStatus: string;
   authError: string;
   otpInputRef: RefObject<TextInputHandle | null>;
@@ -41,6 +43,8 @@ export function AuthScreen(props: Props) {
     setAuthPassword,
     authOtpCooldownSec,
     authVerifyingOtp,
+    authSubmitting,
+    authSendingOtp,
     authStatus,
     authError,
     otpInputRef,
@@ -55,8 +59,9 @@ export function AuthScreen(props: Props) {
       <Text style={styles.muted}>Sign in with phone (recommended) or email.</Text>
       <View style={styles.row}>
         <TouchableOpacity
-          style={authMethod === 'phone' ? styles.button : styles.buttonSecondary}
+          style={[authMethod === 'phone' ? styles.button : styles.buttonSecondary, authSubmitting && styles.buttonDisabled]}
           onPress={() => setAuthMethod('phone')}
+          disabled={authSubmitting}
         >
           <View style={styles.buttonContentRow}>
             <Ionicons name="call" size={16} color="#fff" />
@@ -64,8 +69,9 @@ export function AuthScreen(props: Props) {
           </View>
         </TouchableOpacity>
         <TouchableOpacity
-          style={authMethod === 'email' ? styles.button : styles.buttonSecondary}
+          style={[authMethod === 'email' ? styles.button : styles.buttonSecondary, authSubmitting && styles.buttonDisabled]}
           onPress={() => setAuthMethod('email')}
+          disabled={authSubmitting}
         >
           <View style={styles.buttonContentRow}>
             <Ionicons name="mail" size={16} color="#fff" />
@@ -85,14 +91,18 @@ export function AuthScreen(props: Props) {
             onChangeText={setAuthPhone}
           />
           <TouchableOpacity
-            style={[styles.button, authOtpCooldownSec > 0 && styles.buttonDisabled]}
+            style={[styles.button, (authOtpCooldownSec > 0 || authSendingOtp) && styles.buttonDisabled]}
             onPress={onSendPhoneOtp}
-            disabled={authOtpCooldownSec > 0}
+            disabled={authOtpCooldownSec > 0 || authSendingOtp}
           >
             <View style={styles.buttonContentRow}>
-              <Ionicons name="paper-plane" size={16} color="#fff" />
+              {authSendingOtp ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="paper-plane" size={16} color="#fff" />}
               <Text style={styles.buttonText}>
-                {authOtpCooldownSec > 0 ? `Send Again In ${authOtpCooldownSec}s` : 'Send SMS Code'}
+                {authSendingOtp
+                  ? 'Sending...'
+                  : authOtpCooldownSec > 0
+                    ? `Send Again In ${authOtpCooldownSec}s`
+                    : 'Send SMS Code'}
               </Text>
             </View>
           </TouchableOpacity>
@@ -112,7 +122,7 @@ export function AuthScreen(props: Props) {
             disabled={authVerifyingOtp}
           >
             <View style={styles.buttonContentRow}>
-              <Ionicons name="checkmark-circle" size={16} color="#fff" />
+              {authVerifyingOtp ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark-circle" size={16} color="#fff" />}
               <Text style={styles.buttonText}>{authVerifyingOtp ? 'Verifying...' : 'Verify Code'}</Text>
             </View>
           </TouchableOpacity>
@@ -139,16 +149,24 @@ export function AuthScreen(props: Props) {
             onChangeText={setAuthPassword}
           />
           <View style={styles.row}>
-            <TouchableOpacity style={styles.button} onPress={() => onAuth('sign-in')}>
+            <TouchableOpacity
+              style={[styles.button, authSubmitting && styles.buttonDisabled]}
+              onPress={() => onAuth('sign-in')}
+              disabled={authSubmitting}
+            >
               <View style={styles.buttonContentRow}>
-                <Ionicons name="log-in-outline" size={16} color="#fff" />
-                <Text style={styles.buttonText}>Sign In</Text>
+                {authSubmitting ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="log-in-outline" size={16} color="#fff" />}
+                <Text style={styles.buttonText}>{authSubmitting ? 'Signing In...' : 'Sign In'}</Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.buttonSecondary} onPress={() => onAuth('sign-up')}>
+            <TouchableOpacity
+              style={[styles.buttonSecondary, authSubmitting && styles.buttonDisabled]}
+              onPress={() => onAuth('sign-up')}
+              disabled={authSubmitting}
+            >
               <View style={styles.buttonContentRow}>
-                <Ionicons name="person-add" size={16} color="#fff" />
-                <Text style={styles.buttonText}>Sign Up</Text>
+                {authSubmitting ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="person-add" size={16} color="#fff" />}
+                <Text style={styles.buttonText}>{authSubmitting ? 'Creating...' : 'Sign Up'}</Text>
               </View>
             </TouchableOpacity>
           </View>

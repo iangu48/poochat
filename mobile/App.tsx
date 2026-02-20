@@ -30,6 +30,8 @@ export default function App() {
           setAuthPassword={app.setAuthPassword}
           authOtpCooldownSec={app.authOtpCooldownSec}
           authVerifyingOtp={app.authVerifyingOtp}
+          authSubmitting={app.authSubmitting}
+          authSendingOtp={app.authSendingOtp}
           authStatus={app.authStatus}
           authError={app.authError}
           otpInputRef={app.otpInputRef}
@@ -58,6 +60,8 @@ export default function App() {
           username={app.onboardingUsername}
           displayName={app.onboardingDisplayName}
           error={app.profileError}
+          profileSaving={app.profileSaving}
+          signingOut={app.signingOut}
           onUsernameChange={app.setOnboardingUsername}
           onDisplayNameChange={app.setOnboardingDisplayName}
           onSave={() => void app.handleSaveProfile()}
@@ -78,6 +82,9 @@ export default function App() {
           feedItems={app.feedItems}
           profilesById={app.profilesById}
           loadingEntries={app.loadingEntries}
+          feedLoading={app.feedLoading}
+          addEntryLoading={app.addEntryLoading}
+          deletingEntryIds={app.deletingEntryIds}
           entryError={app.entryError}
           feedError={app.feedError}
           showEntryComposer={app.showEntryComposer}
@@ -102,14 +109,19 @@ export default function App() {
           setSocialSection={app.setSocialSection}
           feedItems={app.feedItems}
           feedError={app.feedError}
+          feedLoading={app.feedLoading}
           onRefreshFeed={() => void app.refreshFeed()}
           friendUsername={app.friendUsername}
           friends={app.friends}
           incomingRequests={app.incomingRequests}
           friendError={app.friendError}
           friendStatus={app.friendStatus}
+          friendsLoading={app.friendsLoading}
+          sendFriendRequestLoading={app.sendFriendRequestLoading}
+          acceptingRequestIds={app.acceptingRequestIds}
+          openDirectChatLoading={app.openDirectChatLoading}
           onFriendUsernameChange={app.setFriendUsername}
-          onSendFriendRequest={() => void app.handleSendFriendRequest()}
+          onSendFriendRequest={() => app.handleSendFriendRequest()}
           onRefreshFriends={() => void app.refreshFriends()}
           onAcceptRequest={(friendshipId) => void app.handleAcceptRequest(friendshipId)}
           onOpenDirectChat={(friendUserId) => void app.handleOpenDirectChat(friendUserId)}
@@ -147,6 +159,15 @@ export default function App() {
           chatRows={app.chatRows}
           chatStatus={app.chatStatus}
           chatError={app.chatError}
+          chatRefreshInboxLoading={app.chatRefreshInboxLoading}
+          chatCreateGroupLoading={app.chatCreateGroupLoading}
+          chatJoinInviteIdsLoading={app.chatJoinInviteIdsLoading}
+          chatApproveInviteIdsLoading={app.chatApproveInviteIdsLoading}
+          chatRejectInviteIdsLoading={app.chatRejectInviteIdsLoading}
+          chatOpenRoomLoadingId={app.chatOpenRoomLoadingId}
+          chatProposeInviteLoading={app.chatProposeInviteLoading}
+          chatRefreshMessagesLoading={app.chatRefreshMessagesLoading}
+          chatSendMessageLoading={app.chatSendMessageLoading}
           onRefreshInbox={() => void app.handleRefreshChatInbox()}
           onCreateGroup={() => void app.handleCreateGroup()}
           onJoinApprovedInvite={(inviteId) => void app.handleJoinApprovedInvite(inviteId)}
@@ -154,7 +175,7 @@ export default function App() {
           onRejectInvite={(inviteId) => void app.handleRejectInvite(inviteId)}
           onOpenRoom={(roomId) => void app.handleOpenRoom(roomId)}
           onProposeInvite={() => void app.handleProposeInvite()}
-          onRefreshMessages={() => void app.loadMessages(app.activeRoomId)}
+          onRefreshMessages={() => void app.handleRefreshMessages()}
           onSendMessage={() => void app.handleSendMessage()}
         />
       )}
@@ -176,8 +197,10 @@ export default function App() {
           onSelectLeaderboardYear={(year) => void app.handleSelectLeaderboardYear(year)}
           onRefreshLeaderboard={() => void app.refreshAccountLeaderboard()}
           onToggleShareFeed={() => void app.handleToggleShareFeed()}
+          toggleShareFeedLoading={app.toggleShareFeedLoading}
           onUploadAvatar={() => void app.handleUploadAvatar()}
           avatarUploading={app.avatarUploading}
+          signingOut={app.signingOut}
           onSignOut={() => void app.handleSignOut()}
         />
       )}

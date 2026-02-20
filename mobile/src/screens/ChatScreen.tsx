@@ -1,4 +1,4 @@
-import { Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import type { ChatMessage, ChatRoom, ChatRoomInvite, Profile } from '../types/domain';
@@ -41,6 +41,15 @@ type Props = {
   chatRows: ChatMessage[];
   chatStatus: string;
   chatError: string;
+  chatRefreshInboxLoading: boolean;
+  chatCreateGroupLoading: boolean;
+  chatJoinInviteIdsLoading: string[];
+  chatApproveInviteIdsLoading: string[];
+  chatRejectInviteIdsLoading: string[];
+  chatOpenRoomLoadingId: string;
+  chatProposeInviteLoading: boolean;
+  chatRefreshMessagesLoading: boolean;
+  chatSendMessageLoading: boolean;
   onRefreshInbox: () => void;
   onCreateGroup: () => void;
   onJoinApprovedInvite: (inviteId: string) => void;
@@ -88,6 +97,15 @@ export function ChatScreen(props: Props) {
     chatRows,
     chatStatus,
     chatError,
+    chatRefreshInboxLoading,
+    chatCreateGroupLoading,
+    chatJoinInviteIdsLoading,
+    chatApproveInviteIdsLoading,
+    chatRejectInviteIdsLoading,
+    chatOpenRoomLoadingId,
+    chatProposeInviteLoading,
+    chatRefreshMessagesLoading,
+    chatSendMessageLoading,
     onRefreshInbox,
     onCreateGroup,
     onJoinApprovedInvite,
@@ -99,8 +117,10 @@ export function ChatScreen(props: Props) {
     onSendMessage,
   } = props;
 
-  const hasInboxDropdown = showCreateGroup || showInviteQueue || showApprovalQueue;
+  const hasInboxDropdown = showCreateGroup || showInviteQueue;
   const messageGroups = groupSequentialMessages(chatRows);
+  const notificationCount = approvedInvitesForMe.length + approvalsRequired.length;
+  const canManageRoom = activeRoom?.type !== 'dm';
 
   return (
     <ScrollView contentContainerStyle={[styles.screen, styles.chatScreenWrap]}>
@@ -122,38 +142,36 @@ export function ChatScreen(props: Props) {
                 <Ionicons name="add" size={22} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.iconButton, styles.iconButtonSecondary]}
+                style={[styles.buttonSecondary, styles.buttonContentRow]}
                 onPress={() => {
                   setShowInviteQueue((prev) => !prev);
                   setShowCreateGroup(false);
-                  setShowApprovalQueue(false);
                 }}
-                accessibilityLabel="My invites"
+                accessibilityLabel="Unread notifications"
               >
                 <Ionicons name="mail" size={18} color="#fff" />
+                <Text style={styles.buttonText}>Unread</Text>
               </TouchableOpacity>
-              {approvedInvitesForMe.length > 0 ? <Text style={styles.chatBadge}>{approvedInvitesForMe.length}</Text> : null}
+              {notificationCount > 0 ? <Text style={styles.chatBadge}>{notificationCount}</Text> : null}
               <TouchableOpacity
-                style={[styles.iconButton, styles.iconButtonSecondary]}
-                onPress={() => {
-                  setShowApprovalQueue((prev) => !prev);
-                  setShowCreateGroup(false);
-                  setShowInviteQueue(false);
-                }}
-                accessibilityLabel="Approvals"
+                style={[styles.iconButton, styles.iconButtonGhost, chatRefreshInboxLoading && styles.buttonDisabled]}
+                onPress={onRefreshInbox}
+                accessibilityLabel="Refresh inbox"
+                disabled={chatRefreshInboxLoading}
               >
-                <Ionicons name="checkmark-done" size={20} color="#fff" />
-              </TouchableOpacity>
-              {approvalsRequired.length > 0 ? <Text style={styles.chatBadge}>{approvalsRequired.length}</Text> : null}
-              <TouchableOpacity style={[styles.iconButton, styles.iconButtonGhost]} onPress={onRefreshInbox} accessibilityLabel="Refresh inbox">
-                <Ionicons name="refresh" size={18} color="#f0f6fc" />
+                {chatRefreshInboxLoading ? <ActivityIndicator size="small" color="#f0f6fc" /> : <Ionicons name="refresh" size={18} color="#f0f6fc" />}
               </TouchableOpacity>
             </View>
           </View>
 
           <Text style={styles.sectionTitle}>Your Chat List</Text>
           {chatRooms.map((room) => (
-            <TouchableOpacity key={room.id} style={styles.chatListItem} onPress={() => onOpenRoom(room.id)}>
+            <TouchableOpacity
+              key={room.id}
+              style={styles.chatListItem}
+              onPress={() => onOpenRoom(room.id)}
+              disabled={chatOpenRoomLoadingId === room.id}
+            >
               <View style={styles.chatListItemHeader}>
                 <View style={styles.inlineRow}>
                   {room.type === 'dm' ? (
@@ -165,10 +183,15 @@ export function ChatScreen(props: Props) {
                   ) : null}
                   <Text style={[styles.cardTitle, styles.inlineLeft]}>{getRoomDisplayName(room, chatRoomLabels)}</Text>
                 </View>
-                {approvalsByRoom[room.id] ? <Text style={styles.chatBadge}>{approvalsByRoom[room.id]} pending</Text> : null}
+                <View style={styles.inlineRow}>
+                  {chatOpenRoomLoadingId === room.id ? <ActivityIndicator size="small" color="#f0f6fc" /> : null}
+                  {approvalsByRoom[room.id] ? <Text style={styles.chatBadge}>{approvalsByRoom[room.id]} pending</Text> : null}
+                </View>
               </View>
               <Text style={styles.muted}>{room.type === 'dm' ? 'Direct chat' : 'Group chat'}</Text>
-              <Text style={styles.muted}>{new Date(room.createdAt).toLocaleString()}</Text>
+              <Text style={styles.muted}>
+                {chatOpenRoomLoadingId === room.id ? 'Opening...' : new Date(room.createdAt).toLocaleString()}
+              </Text>
             </TouchableOpacity>
           ))}
           {chatRooms.length === 0 && <Text style={styles.muted}>No chats yet.</Text>}
@@ -189,24 +212,26 @@ export function ChatScreen(props: Props) {
               >
                 <Ionicons name="arrow-back" size={18} color="#f0f6fc" />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.iconButton, styles.iconButtonGhost]}
-                onPress={() => setShowRoomActions((prev) => !prev)}
-                accessibilityLabel="Room actions"
-              >
-                <Ionicons name={showRoomActions ? 'close' : 'ellipsis-horizontal'} size={18} color="#f0f6fc" />
-              </TouchableOpacity>
+              {canManageRoom ? (
+                <TouchableOpacity
+                  style={[styles.iconButton, styles.iconButtonGhost]}
+                  onPress={() => setShowRoomActions((prev) => !prev)}
+                  accessibilityLabel="Room actions"
+                >
+                  <Ionicons name={showRoomActions ? 'close' : 'ellipsis-horizontal'} size={18} color="#f0f6fc" />
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 style={[styles.iconButton, styles.iconButtonGhost]}
                 onPress={onRefreshMessages}
+                disabled={chatRefreshMessagesLoading}
                 accessibilityLabel="Refresh messages"
               >
-                <Ionicons name="refresh" size={18} color="#f0f6fc" />
+                {chatRefreshMessagesLoading ? <ActivityIndicator size="small" color="#f0f6fc" /> : <Ionicons name="refresh" size={18} color="#f0f6fc" />}
               </TouchableOpacity>
             </View>
 
             <Text style={styles.title}>{activeRoom ? getRoomDisplayName(activeRoom, chatRoomLabels) : 'Room'}</Text>
-            <Text style={styles.muted}>Your role: {activeRoomRole ?? 'none'}</Text>
 
           </View>
 
@@ -219,11 +244,12 @@ export function ChatScreen(props: Props) {
               placeholderTextColor="#8b949e"
             />
             <TouchableOpacity
-              style={[styles.iconButton, styles.iconButtonPrimary, styles.inlineAction]}
+              style={[styles.iconButton, styles.iconButtonPrimary, styles.inlineAction, chatSendMessageLoading && styles.buttonDisabled]}
               onPress={onSendMessage}
+              disabled={chatSendMessageLoading}
               accessibilityLabel="Send message"
             >
-              <Ionicons name="send" size={18} color="#fff" />
+              {chatSendMessageLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
             </TouchableOpacity>
           </View>
 
@@ -266,7 +292,6 @@ export function ChatScreen(props: Props) {
         onRequestClose={() => {
           setShowCreateGroup(false);
           setShowInviteQueue(false);
-          setShowApprovalQueue(false);
         }}
       >
         <Pressable
@@ -274,7 +299,6 @@ export function ChatScreen(props: Props) {
           onPress={() => {
             setShowCreateGroup(false);
             setShowInviteQueue(false);
-            setShowApprovalQueue(false);
           }}
         >
           <Pressable style={[styles.modalCard, styles.chatModalCard]} onPress={() => {}}>
@@ -288,10 +312,14 @@ export function ChatScreen(props: Props) {
                   placeholder="Group name"
                   placeholderTextColor="#8b949e"
                 />
-                <TouchableOpacity style={styles.button} onPress={onCreateGroup}>
+                <TouchableOpacity
+                  style={[styles.button, chatCreateGroupLoading && styles.buttonDisabled]}
+                  onPress={onCreateGroup}
+                  disabled={chatCreateGroupLoading}
+                >
                   <View style={styles.buttonContentRow}>
-                    <Ionicons name="add-circle" size={16} color="#fff" />
-                    <Text style={styles.buttonText}>Create Group</Text>
+                    {chatCreateGroupLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="add-circle" size={16} color="#fff" />}
+                    <Text style={styles.buttonText}>{chatCreateGroupLoading ? 'Creating...' : 'Create Group'}</Text>
                   </View>
                 </TouchableOpacity>
               </>
@@ -299,7 +327,8 @@ export function ChatScreen(props: Props) {
 
             {showInviteQueue && (
               <>
-                <Text style={styles.cardTitle}>Invites Waiting On You</Text>
+                <Text style={styles.cardTitle}>Unread Notifications</Text>
+                <Text style={styles.sectionTitle}>Invites Waiting On You</Text>
                 {approvedInvitesForMe.map((invite) => (
                   <View key={invite.id} style={styles.dropdownItem}>
                     <Text style={styles.cardTitle}>Room: {inviteRoomLabels[invite.roomId] ?? 'Direct Chat'}</Text>
@@ -313,21 +342,27 @@ export function ChatScreen(props: Props) {
                         Proposer: {inviteParticipantLabels[invite.proposerId] ?? 'Member'}
                       </Text>
                     </View>
-                    <TouchableOpacity style={styles.button} onPress={() => onJoinApprovedInvite(invite.id)}>
+                    <TouchableOpacity
+                      style={[styles.button, chatJoinInviteIdsLoading.includes(invite.id) && styles.buttonDisabled]}
+                      onPress={() => onJoinApprovedInvite(invite.id)}
+                      disabled={chatJoinInviteIdsLoading.includes(invite.id)}
+                    >
                       <View style={styles.buttonContentRow}>
-                        <Ionicons name="enter" size={16} color="#fff" />
-                        <Text style={styles.buttonText}>Join Room</Text>
+                        {chatJoinInviteIdsLoading.includes(invite.id) ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Ionicons name="enter" size={16} color="#fff" />
+                        )}
+                        <Text style={styles.buttonText}>
+                          {chatJoinInviteIdsLoading.includes(invite.id) ? 'Joining...' : 'Join Room'}
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   </View>
                 ))}
                 {approvedInvitesForMe.length === 0 && <Text style={styles.muted}>No invites ready to join.</Text>}
-              </>
-            )}
 
-            {showApprovalQueue && (
-              <>
-                <Text style={styles.cardTitle}>Approvals Required</Text>
+                <Text style={styles.sectionTitle}>Approvals Required</Text>
                 {approvalsRequired.map((invite) => (
                   <View key={invite.id} style={styles.dropdownItem}>
                     <Text style={styles.cardTitle}>Room: {inviteRoomLabels[invite.roomId] ?? 'Direct Chat'}</Text>
@@ -342,22 +377,44 @@ export function ChatScreen(props: Props) {
                       </Text>
                     </View>
                     <View style={styles.row}>
-                      <TouchableOpacity style={styles.button} onPress={() => onApproveInvite(invite.id)}>
+                      <TouchableOpacity
+                        style={[styles.button, chatApproveInviteIdsLoading.includes(invite.id) && styles.buttonDisabled]}
+                        onPress={() => onApproveInvite(invite.id)}
+                        disabled={chatApproveInviteIdsLoading.includes(invite.id)}
+                      >
                         <View style={styles.buttonContentRow}>
-                          <Ionicons name="checkmark" size={16} color="#fff" />
-                          <Text style={styles.buttonText}>Approve</Text>
+                          {chatApproveInviteIdsLoading.includes(invite.id) ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Ionicons name="checkmark" size={16} color="#fff" />
+                          )}
+                          <Text style={styles.buttonText}>
+                            {chatApproveInviteIdsLoading.includes(invite.id) ? 'Approving...' : 'Approve'}
+                          </Text>
                         </View>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.buttonDangerInline} onPress={() => onRejectInvite(invite.id)}>
+                      <TouchableOpacity
+                        style={[styles.buttonDangerInline, chatRejectInviteIdsLoading.includes(invite.id) && styles.buttonDisabled]}
+                        onPress={() => onRejectInvite(invite.id)}
+                        disabled={chatRejectInviteIdsLoading.includes(invite.id)}
+                      >
                         <View style={styles.buttonContentRow}>
-                          <Ionicons name="close" size={16} color="#fff" />
-                          <Text style={styles.buttonText}>Reject</Text>
+                          {chatRejectInviteIdsLoading.includes(invite.id) ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Ionicons name="close" size={16} color="#fff" />
+                          )}
+                          <Text style={styles.buttonText}>
+                            {chatRejectInviteIdsLoading.includes(invite.id) ? 'Rejecting...' : 'Reject'}
+                          </Text>
                         </View>
                       </TouchableOpacity>
                     </View>
                   </View>
                 ))}
-                {approvalsRequired.length === 0 && <Text style={styles.muted}>No approvals needed.</Text>}
+                {approvedInvitesForMe.length === 0 && approvalsRequired.length === 0 ? (
+                  <Text style={styles.muted}>No unread notifications.</Text>
+                ) : null}
               </>
             )}
           </Pressable>
@@ -366,7 +423,7 @@ export function ChatScreen(props: Props) {
 
       <Modal
         transparent
-        visible={chatRoute === 'room' && showRoomActions}
+        visible={chatRoute === 'room' && showRoomActions && canManageRoom}
         animationType="fade"
         onRequestClose={() => setShowRoomActions(false)}
       >
@@ -382,10 +439,14 @@ export function ChatScreen(props: Props) {
               placeholder="username"
               placeholderTextColor="#8b949e"
             />
-            <TouchableOpacity style={styles.button} onPress={onProposeInvite}>
+            <TouchableOpacity
+              style={[styles.button, chatProposeInviteLoading && styles.buttonDisabled]}
+              onPress={onProposeInvite}
+              disabled={chatProposeInviteLoading}
+            >
               <View style={styles.buttonContentRow}>
-                <Ionicons name="person-add" size={16} color="#fff" />
-                <Text style={styles.buttonText}>Propose Invite</Text>
+                {chatProposeInviteLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="person-add" size={16} color="#fff" />}
+                <Text style={styles.buttonText}>{chatProposeInviteLoading ? 'Submitting...' : 'Propose Invite'}</Text>
               </View>
             </TouchableOpacity>
             <Text style={styles.sectionTitle}>Pending Invites (This Room)</Text>
@@ -413,16 +474,28 @@ export function ChatScreen(props: Props) {
                 </View>
                 {(activeRoomRole === 'owner' || activeRoomRole === 'admin') && (
                   <View style={styles.row}>
-                    <TouchableOpacity style={styles.button} onPress={() => onApproveInvite(invite.id)}>
+                    <TouchableOpacity
+                      style={[styles.button, chatApproveInviteIdsLoading.includes(invite.id) && styles.buttonDisabled]}
+                      onPress={() => onApproveInvite(invite.id)}
+                      disabled={chatApproveInviteIdsLoading.includes(invite.id)}
+                    >
                       <View style={styles.buttonContentRow}>
-                        <Ionicons name="checkmark" size={16} color="#fff" />
-                        <Text style={styles.buttonText}>Approve</Text>
+                        {chatApproveInviteIdsLoading.includes(invite.id) ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark" size={16} color="#fff" />}
+                        <Text style={styles.buttonText}>
+                          {chatApproveInviteIdsLoading.includes(invite.id) ? 'Approving...' : 'Approve'}
+                        </Text>
                       </View>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.buttonDangerInline} onPress={() => onRejectInvite(invite.id)}>
+                    <TouchableOpacity
+                      style={[styles.buttonDangerInline, chatRejectInviteIdsLoading.includes(invite.id) && styles.buttonDisabled]}
+                      onPress={() => onRejectInvite(invite.id)}
+                      disabled={chatRejectInviteIdsLoading.includes(invite.id)}
+                    >
                       <View style={styles.buttonContentRow}>
-                        <Ionicons name="close" size={16} color="#fff" />
-                        <Text style={styles.buttonText}>Reject</Text>
+                        {chatRejectInviteIdsLoading.includes(invite.id) ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="close" size={16} color="#fff" />}
+                        <Text style={styles.buttonText}>
+                          {chatRejectInviteIdsLoading.includes(invite.id) ? 'Rejecting...' : 'Reject'}
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   </View>

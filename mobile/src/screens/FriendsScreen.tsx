@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { ChatScreen, type ChatRoute } from './ChatScreen';
@@ -13,14 +13,19 @@ type Props = {
   feedItems: FeedItem[];
   profilesById: Record<string, Profile>;
   feedError: string;
+  feedLoading: boolean;
   onRefreshFeed: () => void;
   friendUsername: string;
   friends: Profile[];
   incomingRequests: IncomingFriendRequest[];
   friendError: string;
   friendStatus: string;
+  friendsLoading: boolean;
+  sendFriendRequestLoading: boolean;
+  acceptingRequestIds: string[];
+  openDirectChatLoading: boolean;
   onFriendUsernameChange: (value: string) => void;
-  onSendFriendRequest: () => void;
+  onSendFriendRequest: () => Promise<void>;
   onRefreshFriends: () => void;
   onAcceptRequest: (friendshipId: string) => void;
   onOpenDirectChat: (friendUserId: string) => void;
@@ -57,6 +62,15 @@ type Props = {
   chatRows: ChatMessage[];
   chatStatus: string;
   chatError: string;
+  chatRefreshInboxLoading: boolean;
+  chatCreateGroupLoading: boolean;
+  chatJoinInviteIdsLoading: string[];
+  chatApproveInviteIdsLoading: string[];
+  chatRejectInviteIdsLoading: string[];
+  chatOpenRoomLoadingId: string;
+  chatProposeInviteLoading: boolean;
+  chatRefreshMessagesLoading: boolean;
+  chatSendMessageLoading: boolean;
   onRefreshInbox: () => void;
   onCreateGroup: () => void;
   onJoinApprovedInvite: (inviteId: string) => void;
@@ -75,12 +89,17 @@ export function FriendsScreen(props: Props) {
     feedItems,
     profilesById,
     feedError,
+    feedLoading,
     onRefreshFeed,
     friendUsername,
     friends,
     incomingRequests,
     friendError,
     friendStatus,
+    friendsLoading,
+    sendFriendRequestLoading,
+    acceptingRequestIds,
+    openDirectChatLoading,
     onFriendUsernameChange,
     onSendFriendRequest,
     onRefreshFriends,
@@ -94,6 +113,11 @@ export function FriendsScreen(props: Props) {
   const hasFriendDropdown = showFriendActions || showIncomingRequests;
 
   const sortedFeed = [...feedItems].sort((a, b) => +new Date(b.occurredAt) - +new Date(a.occurredAt));
+
+  async function handleSendFriendRequestPress(): Promise<void> {
+    await onSendFriendRequest();
+    setShowFriendActions(false);
+  }
 
   return (
     <ScrollView contentContainerStyle={[styles.screen, styles.socialWrap]}>
@@ -125,8 +149,13 @@ export function FriendsScreen(props: Props) {
 
       {socialSection === 'feed' && (
         <>
-          <TouchableOpacity style={[styles.iconButton, styles.iconButtonGhost]} onPress={onRefreshFeed} accessibilityLabel="Refresh feed">
-            <Ionicons name="refresh" size={18} color="#f0f6fc" />
+          <TouchableOpacity
+            style={[styles.iconButton, styles.iconButtonGhost, feedLoading && styles.buttonDisabled]}
+            onPress={onRefreshFeed}
+            accessibilityLabel="Refresh feed"
+            disabled={feedLoading}
+          >
+            {feedLoading ? <ActivityIndicator size="small" color="#f0f6fc" /> : <Ionicons name="refresh" size={18} color="#f0f6fc" />}
           </TouchableOpacity>
           {!!feedError && <Text style={styles.error}>{feedError}</Text>}
           {sortedFeed.map((item) => (
@@ -153,28 +182,35 @@ export function FriendsScreen(props: Props) {
         <View style={styles.chatFloatingHost}>
           <View style={styles.socialActionsRow}>
             <TouchableOpacity
-              style={[styles.iconButton, styles.iconButtonPrimary]}
+              style={[styles.iconButton, styles.iconButtonPrimary, sendFriendRequestLoading && styles.buttonDisabled]}
               onPress={() => {
                 setShowFriendActions((prev) => !prev);
                 setShowIncomingRequests(false);
               }}
               accessibilityLabel="Friend actions"
+              disabled={sendFriendRequestLoading}
             >
-              <Ionicons name="person-add" size={18} color="#fff" />
+              {sendFriendRequestLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="person-add" size={18} color="#fff" />}
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.iconButton, styles.iconButtonSecondary]}
+              style={[styles.iconButton, styles.iconButtonSecondary, friendsLoading && styles.buttonDisabled]}
               onPress={() => {
                 setShowIncomingRequests((prev) => !prev);
                 setShowFriendActions(false);
               }}
               accessibilityLabel="Incoming requests"
+              disabled={friendsLoading}
             >
-              <Ionicons name="mail" size={18} color="#fff" />
+              {friendsLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="mail" size={18} color="#fff" />}
             </TouchableOpacity>
             {incomingRequests.length > 0 ? <Text style={styles.chatBadge}>{incomingRequests.length}</Text> : null}
-            <TouchableOpacity style={[styles.iconButton, styles.iconButtonGhost]} onPress={onRefreshFriends} accessibilityLabel="Refresh friends">
-              <Ionicons name="refresh" size={18} color="#f0f6fc" />
+            <TouchableOpacity
+              style={[styles.iconButton, styles.iconButtonGhost, friendsLoading && styles.buttonDisabled]}
+              onPress={onRefreshFriends}
+              accessibilityLabel="Refresh friends"
+              disabled={friendsLoading}
+            >
+              {friendsLoading ? <ActivityIndicator size="small" color="#f0f6fc" /> : <Ionicons name="refresh" size={18} color="#f0f6fc" />}
             </TouchableOpacity>
           </View>
 
@@ -190,11 +226,17 @@ export function FriendsScreen(props: Props) {
                   {friend.displayName} (@{friend.username})
                 </Text>
                 <TouchableOpacity
-                  style={[styles.iconButton, styles.iconButtonSecondary, styles.inlineAction]}
+                  style={[
+                    styles.iconButton,
+                    styles.iconButtonSecondary,
+                    styles.inlineAction,
+                    openDirectChatLoading && styles.buttonDisabled,
+                  ]}
                   onPress={() => onOpenDirectChat(friend.id)}
+                  disabled={openDirectChatLoading}
                   accessibilityLabel={`Open chat with ${friend.displayName}`}
                 >
-                  <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
+                  {openDirectChatLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />}
                 </TouchableOpacity>
               </View>
             </View>
@@ -231,10 +273,14 @@ export function FriendsScreen(props: Props) {
                   placeholder="username"
                   placeholderTextColor="#8b949e"
                 />
-                <TouchableOpacity style={styles.button} onPress={onSendFriendRequest}>
+                <TouchableOpacity
+                  style={[styles.button, sendFriendRequestLoading && styles.buttonDisabled]}
+                  onPress={() => void handleSendFriendRequestPress()}
+                  disabled={sendFriendRequestLoading}
+                >
                   <View style={styles.buttonContentRow}>
-                    <Ionicons name="paper-plane" size={16} color="#fff" />
-                    <Text style={styles.buttonText}>Send Request</Text>
+                    {sendFriendRequestLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="paper-plane" size={16} color="#fff" />}
+                    <Text style={styles.buttonText}>{sendFriendRequestLoading ? 'Sending...' : 'Send Request'}</Text>
                   </View>
                 </TouchableOpacity>
               </>
@@ -255,10 +301,14 @@ export function FriendsScreen(props: Props) {
                         {request.from.displayName} (@{request.from.username})
                       </Text>
                     </View>
-                    <TouchableOpacity style={styles.button} onPress={() => onAcceptRequest(request.id)}>
+                    <TouchableOpacity
+                      style={[styles.button, acceptingRequestIds.includes(request.id) && styles.buttonDisabled]}
+                      onPress={() => onAcceptRequest(request.id)}
+                      disabled={acceptingRequestIds.includes(request.id)}
+                    >
                       <View style={styles.buttonContentRow}>
-                        <Ionicons name="checkmark" size={16} color="#fff" />
-                        <Text style={styles.buttonText}>Accept</Text>
+                        {acceptingRequestIds.includes(request.id) ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark" size={16} color="#fff" />}
+                        <Text style={styles.buttonText}>{acceptingRequestIds.includes(request.id) ? 'Accepting...' : 'Accept'}</Text>
                       </View>
                     </TouchableOpacity>
                   </View>

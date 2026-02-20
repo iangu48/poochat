@@ -37,6 +37,8 @@ export function useAppController() {
   const [authStatus, setAuthStatus] = useState('');
   const [authOtpCooldownSec, setAuthOtpCooldownSec] = useState(0);
   const [authVerifyingOtp, setAuthVerifyingOtp] = useState(false);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [authSendingOtp, setAuthSendingOtp] = useState(false);
   const [lastAutoSubmittedOtp, setLastAutoSubmittedOtp] = useState('');
   const otpInputRef = useRef<TextInputHandle | null>(null);
 
@@ -55,16 +57,22 @@ export function useAppController() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [toggleShareFeedLoading, setToggleShareFeedLoading] = useState(false);
   const [onboardingUsername, setOnboardingUsername] = useState('');
   const [onboardingDisplayName, setOnboardingDisplayName] = useState('');
 
   const [entries, setEntries] = useState<PoopEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
+  const [feedLoading, setFeedLoading] = useState(false);
   const [entryError, setEntryError] = useState('');
   const [bristolType, setBristolType] = useState('4');
   const [rating, setRating] = useState('3');
   const [note, setNote] = useState('');
   const [showEntryComposer, setShowEntryComposer] = useState(false);
+  const [addEntryLoading, setAddEntryLoading] = useState(false);
+  const [deletingEntryIds, setDeletingEntryIds] = useState<string[]>([]);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedError, setFeedError] = useState('');
 
@@ -73,6 +81,10 @@ export function useAppController() {
   const [incomingRequests, setIncomingRequests] = useState<IncomingFriendRequest[]>([]);
   const [friendError, setFriendError] = useState('');
   const [friendStatus, setFriendStatus] = useState('');
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [sendFriendRequestLoading, setSendFriendRequestLoading] = useState(false);
+  const [acceptingRequestIds, setAcceptingRequestIds] = useState<string[]>([]);
+  const [openDirectChatLoading, setOpenDirectChatLoading] = useState(false);
 
   const currentYear = new Date().getFullYear();
   const previousYear = currentYear - 1;
@@ -105,6 +117,15 @@ export function useAppController() {
   const [chatRows, setChatRows] = useState<ChatMessage[]>([]);
   const [chatError, setChatError] = useState('');
   const [chatStatus, setChatStatus] = useState('');
+  const [chatRefreshInboxLoading, setChatRefreshInboxLoading] = useState(false);
+  const [chatCreateGroupLoading, setChatCreateGroupLoading] = useState(false);
+  const [chatJoinInviteIdsLoading, setChatJoinInviteIdsLoading] = useState<string[]>([]);
+  const [chatApproveInviteIdsLoading, setChatApproveInviteIdsLoading] = useState<string[]>([]);
+  const [chatRejectInviteIdsLoading, setChatRejectInviteIdsLoading] = useState<string[]>([]);
+  const [chatOpenRoomLoadingId, setChatOpenRoomLoadingId] = useState('');
+  const [chatProposeInviteLoading, setChatProposeInviteLoading] = useState(false);
+  const [chatRefreshMessagesLoading, setChatRefreshMessagesLoading] = useState(false);
+  const [chatSendMessageLoading, setChatSendMessageLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -261,6 +282,7 @@ export function useAppController() {
   }
 
   async function refreshFeed(): Promise<void> {
+    setFeedLoading(true);
     setFeedError('');
     try {
       const items = await feedService.listMineAndFriends(60);
@@ -268,10 +290,13 @@ export function useAppController() {
       void hydrateProfilesByIds(items.map((item) => item.subjectId));
     } catch (error) {
       setFeedError(error instanceof Error ? error.message : 'Failed to load feed.');
+    } finally {
+      setFeedLoading(false);
     }
   }
 
   async function refreshFriends(): Promise<void> {
+    setFriendsLoading(true);
     setFriendError('');
     try {
       const [accepted, incoming] = await Promise.all([
@@ -286,6 +311,8 @@ export function useAppController() {
       }
     } catch (error) {
       setFriendError(error instanceof Error ? error.message : 'Failed to load friends.');
+    } finally {
+      setFriendsLoading(false);
     }
   }
 
@@ -516,6 +543,8 @@ export function useAppController() {
   }
 
   async function handleAuth(mode: 'sign-in' | 'sign-up'): Promise<void> {
+    if (authSubmitting) return;
+    setAuthSubmitting(true);
     setAuthError('');
     setAuthStatus('');
     try {
@@ -532,16 +561,20 @@ export function useAppController() {
       }
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Authentication failed.');
+    } finally {
+      setAuthSubmitting(false);
     }
   }
 
   async function handleSendPhoneOtp(): Promise<void> {
+    if (authSendingOtp) return;
     setAuthError('');
     setAuthStatus('');
     if (authOtpCooldownSec > 0) {
       setAuthError(`Please wait ${authOtpCooldownSec}s before requesting another code.`);
       return;
     }
+    setAuthSendingOtp(true);
     try {
       const normalizedPhone = normalizePhone(authPhone);
       const { error } = await supabase.auth.signInWithOtp({
@@ -556,6 +589,8 @@ export function useAppController() {
       otpInputRef.current?.focus();
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Failed to send SMS code.');
+    } finally {
+      setAuthSendingOtp(false);
     }
   }
 
@@ -584,6 +619,8 @@ export function useAppController() {
   }
 
   async function handleSaveProfile(): Promise<void> {
+    if (profileSaving) return;
+    setProfileSaving(true);
     setProfileError('');
     try {
       const profile = await profileService.upsertMine({
@@ -601,10 +638,14 @@ export function useAppController() {
       ]);
     } catch (error) {
       setProfileError(error instanceof Error ? error.message : 'Failed to save profile.');
+    } finally {
+      setProfileSaving(false);
     }
   }
 
   async function handleAddEntry(): Promise<void> {
+    if (addEntryLoading) return;
+    setAddEntryLoading(true);
     setEntryError('');
     try {
       const typeValue = clampInt(Number(bristolType), 1, 7);
@@ -620,20 +661,27 @@ export function useAppController() {
       await Promise.all([refreshEntries(), refreshFeed()]);
     } catch (error) {
       setEntryError(error instanceof Error ? error.message : 'Failed to add entry.');
+    } finally {
+      setAddEntryLoading(false);
     }
   }
 
   async function handleDeleteEntry(entryId: string): Promise<void> {
+    setDeletingEntryIds((prev) => (prev.includes(entryId) ? prev : [...prev, entryId]));
     setEntryError('');
     try {
       await poopService.deleteMine(entryId);
       await refreshEntries();
     } catch (error) {
       setEntryError(error instanceof Error ? error.message : 'Failed to delete entry.');
+    } finally {
+      setDeletingEntryIds((prev) => prev.filter((id) => id !== entryId));
     }
   }
 
   async function handleSendFriendRequest(): Promise<void> {
+    if (sendFriendRequestLoading) return;
+    setSendFriendRequestLoading(true);
     setFriendError('');
     setFriendStatus('');
     try {
@@ -648,10 +696,13 @@ export function useAppController() {
       await refreshFriends();
     } catch (error) {
       setFriendError(error instanceof Error ? error.message : 'Failed to send request.');
+    } finally {
+      setSendFriendRequestLoading(false);
     }
   }
 
   async function handleAcceptRequest(friendshipId: string): Promise<void> {
+    setAcceptingRequestIds((prev) => (prev.includes(friendshipId) ? prev : [...prev, friendshipId]));
     setFriendError('');
     setFriendStatus('');
     try {
@@ -660,10 +711,14 @@ export function useAppController() {
       await refreshFriends();
     } catch (error) {
       setFriendError(error instanceof Error ? error.message : 'Failed to accept request.');
+    } finally {
+      setAcceptingRequestIds((prev) => prev.filter((id) => id !== friendshipId));
     }
   }
 
   async function handleOpenDirectChat(friendUserId: string): Promise<void> {
+    if (openDirectChatLoading) return;
+    setOpenDirectChatLoading(true);
     setChatError('');
     setChatStatus('');
     try {
@@ -677,10 +732,14 @@ export function useAppController() {
       await refreshApprovalsRequired(rooms);
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to open chat.');
+    } finally {
+      setOpenDirectChatLoading(false);
     }
   }
 
   async function handleCreateGroup(): Promise<void> {
+    if (chatCreateGroupLoading) return;
+    setChatCreateGroupLoading(true);
     setChatError('');
     setChatStatus('');
     try {
@@ -695,10 +754,13 @@ export function useAppController() {
       await refreshApprovalsRequired(rooms);
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to create group.');
+    } finally {
+      setChatCreateGroupLoading(false);
     }
   }
 
   async function handleOpenRoom(roomId: string): Promise<void> {
+    setChatOpenRoomLoadingId(roomId);
     setChatError('');
     setChatStatus('');
     try {
@@ -708,14 +770,22 @@ export function useAppController() {
       setChatStatus('Room opened.');
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to open room.');
+    } finally {
+      setChatOpenRoomLoadingId('');
     }
   }
 
   async function handleProposeInvite(): Promise<void> {
+    if (chatProposeInviteLoading) return;
     if (!activeRoomId.trim()) {
       setChatError('Open a room first.');
       return;
     }
+    if (activeRoom?.type === 'dm') {
+      setChatError('Direct chats do not support invite proposals.');
+      return;
+    }
+    setChatProposeInviteLoading(true);
     setChatError('');
     setChatStatus('');
     try {
@@ -730,10 +800,13 @@ export function useAppController() {
       await refreshPendingInvites(activeRoomId);
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to propose invite.');
+    } finally {
+      setChatProposeInviteLoading(false);
     }
   }
 
   async function handleApproveInvite(inviteId: string): Promise<void> {
+    setChatApproveInviteIdsLoading((prev) => (prev.includes(inviteId) ? prev : [...prev, inviteId]));
     setChatError('');
     setChatStatus('');
     try {
@@ -744,10 +817,13 @@ export function useAppController() {
       await refreshApprovalsRequired(rooms);
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to approve invite.');
+    } finally {
+      setChatApproveInviteIdsLoading((prev) => prev.filter((id) => id !== inviteId));
     }
   }
 
   async function handleRejectInvite(inviteId: string): Promise<void> {
+    setChatRejectInviteIdsLoading((prev) => (prev.includes(inviteId) ? prev : [...prev, inviteId]));
     setChatError('');
     setChatStatus('');
     try {
@@ -756,10 +832,13 @@ export function useAppController() {
       await refreshPendingInvites(activeRoomId);
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to reject invite.');
+    } finally {
+      setChatRejectInviteIdsLoading((prev) => prev.filter((id) => id !== inviteId));
     }
   }
 
   async function handleJoinApprovedInvite(inviteId: string): Promise<void> {
+    setChatJoinInviteIdsLoading((prev) => (prev.includes(inviteId) ? prev : [...prev, inviteId]));
     setChatError('');
     setChatStatus('');
     try {
@@ -780,6 +859,8 @@ export function useAppController() {
       }
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to join invite.');
+    } finally {
+      setChatJoinInviteIdsLoading((prev) => prev.filter((id) => id !== inviteId));
     }
   }
 
@@ -846,11 +927,13 @@ export function useAppController() {
   }
 
   async function handleSendMessage(): Promise<void> {
+    if (chatSendMessageLoading) return;
     if (!activeRoomId.trim()) {
       setChatError('Open chat from Social tab first.');
       return;
     }
     if (!messageBody.trim()) return;
+    setChatSendMessageLoading(true);
     setChatError('');
     try {
       const sent = await chatService.sendMessage(activeRoomId.trim(), messageBody.trim());
@@ -863,16 +946,25 @@ export function useAppController() {
       setMessageBody('');
     } catch (error) {
       setChatError(error instanceof Error ? error.message : 'Failed to send message.');
+    } finally {
+      setChatSendMessageLoading(false);
     }
   }
 
   async function handleSignOut(): Promise<void> {
-    await supabase.auth.signOut();
-    setTab('home');
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await supabase.auth.signOut();
+      setTab('home');
+    } finally {
+      setSigningOut(false);
+    }
   }
 
   async function handleToggleShareFeed(): Promise<void> {
-    if (!myProfile) return;
+    if (toggleShareFeedLoading || !myProfile) return;
+    setToggleShareFeedLoading(true);
     setProfileError('');
     try {
       const updated = await profileService.setShareFeed(!myProfile.shareFeed);
@@ -880,6 +972,8 @@ export function useAppController() {
       await refreshFeed();
     } catch (error) {
       setProfileError(error instanceof Error ? error.message : 'Failed to update feed visibility.');
+    } finally {
+      setToggleShareFeedLoading(false);
     }
   }
 
@@ -940,8 +1034,24 @@ export function useAppController() {
   }
 
   async function handleRefreshChatInbox(): Promise<void> {
-    const rooms = await refreshRooms();
-    await Promise.all([refreshMyApprovedInvites(), refreshApprovalsRequired(rooms)]);
+    if (chatRefreshInboxLoading) return;
+    setChatRefreshInboxLoading(true);
+    try {
+      const rooms = await refreshRooms();
+      await Promise.all([refreshMyApprovedInvites(), refreshApprovalsRequired(rooms)]);
+    } finally {
+      setChatRefreshInboxLoading(false);
+    }
+  }
+
+  async function handleRefreshMessages(): Promise<void> {
+    if (chatRefreshMessagesLoading) return;
+    setChatRefreshMessagesLoading(true);
+    try {
+      await loadMessages(activeRoomId);
+    } finally {
+      setChatRefreshMessagesLoading(false);
+    }
   }
 
   const activeRoom = chatRooms.find((room) => room.id === activeRoomId) ?? null;
@@ -970,6 +1080,8 @@ export function useAppController() {
     authStatus,
     authOtpCooldownSec,
     authVerifyingOtp,
+    authSubmitting,
+    authSendingOtp,
     otpInputRef,
     handleAuth,
     handleSendPhoneOtp,
@@ -978,7 +1090,10 @@ export function useAppController() {
     profilesById,
     profileLoading,
     profileError,
+    profileSaving,
     avatarUploading,
+    signingOut,
+    toggleShareFeedLoading,
     onboardingUsername,
     setOnboardingUsername,
     onboardingDisplayName,
@@ -989,6 +1104,9 @@ export function useAppController() {
     handleUploadAvatar,
     entries,
     loadingEntries,
+    feedLoading,
+    addEntryLoading,
+    deletingEntryIds,
     entryError,
     bristolType,
     setBristolType,
@@ -1010,6 +1128,10 @@ export function useAppController() {
     incomingRequests,
     friendError,
     friendStatus,
+    friendsLoading,
+    sendFriendRequestLoading,
+    acceptingRequestIds,
+    openDirectChatLoading,
     handleSendFriendRequest,
     refreshFriends,
     handleAcceptRequest,
@@ -1056,6 +1178,15 @@ export function useAppController() {
     chatRows,
     chatStatus,
     chatError,
+    chatRefreshInboxLoading,
+    chatCreateGroupLoading,
+    chatJoinInviteIdsLoading,
+    chatApproveInviteIdsLoading,
+    chatRejectInviteIdsLoading,
+    chatOpenRoomLoadingId,
+    chatProposeInviteLoading,
+    chatRefreshMessagesLoading,
+    chatSendMessageLoading,
     currentUserId: session?.user.id ?? '',
     handleRefreshChatInbox,
     handleCreateGroup,
@@ -1064,7 +1195,7 @@ export function useAppController() {
     handleRejectInvite,
     handleOpenRoom,
     handleProposeInvite,
-    loadMessages,
+    handleRefreshMessages,
     handleSendMessage,
   };
 }
