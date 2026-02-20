@@ -199,6 +199,13 @@ export const styles = StyleSheet.create({
     color: '#c9d1d9',
     marginBottom: 4,
   },
+  chatGroupMessage: {
+    color: '#c9d1d9',
+    marginBottom: 4,
+  },
+  chatGroupMessageLast: {
+    marginBottom: 2,
+  },
   linkDanger: {
     color: '#ff7b72',
     marginTop: 6,
@@ -227,6 +234,27 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 10,
     marginBottom: 8,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  profileHeaderText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  avatarSquare: {
+    borderWidth: 1,
+    borderColor: '#30363d',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   chatInboxActions: {
     flexDirection: 'row',

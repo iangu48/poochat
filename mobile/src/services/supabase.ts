@@ -26,6 +26,8 @@ type ProfileRow = {
   username: string;
   display_name: string;
   share_feed: boolean;
+  avatar_url: string | null;
+  avatar_tint: string | null;
 };
 
 type PoopRow = {
@@ -101,6 +103,8 @@ function asProfile(row: ProfileRow): Profile {
     username: row.username,
     displayName: row.display_name,
     shareFeed: row.share_feed ?? true,
+    avatarUrl: row.avatar_url ?? null,
+    avatarTint: row.avatar_tint ?? '#5b6c8a',
   };
 }
 
@@ -185,7 +189,7 @@ async function loadProfilesByIds(client: SupabaseClient, ids: UUID[]): Promise<M
   const uniqueIds = Array.from(new Set(ids));
       const { data, error } = await client
         .from('profiles')
-        .select('id,username,display_name,share_feed')
+        .select('id,username,display_name,share_feed,avatar_url,avatar_tint')
         .in('id', uniqueIds);
   if (error) throw error;
   const map = new Map<UUID, Profile>();
@@ -208,13 +212,20 @@ async function requireAcceptedFriendship(client: SupabaseClient, me: UUID, frien
   }
 }
 
+function normalizeImageExtension(mimeType: string): string {
+  const normalized = mimeType.trim().toLowerCase();
+  if (normalized === 'image/png') return 'png';
+  if (normalized === 'image/webp') return 'webp';
+  return 'jpg';
+}
+
 export function createSupabaseProfileService(client: SupabaseClient): ProfileService {
   return {
     async getMine(): Promise<Profile | null> {
       const me = await requireUserId(client);
       const { data, error } = await client
         .from('profiles')
-        .select('id,username,display_name,share_feed')
+        .select('id,username,display_name,share_feed,avatar_url,avatar_tint')
         .eq('id', me)
         .maybeSingle();
       if (error) throw error;
@@ -236,7 +247,7 @@ export function createSupabaseProfileService(client: SupabaseClient): ProfileSer
           },
           { onConflict: 'id' }
         )
-        .select('id,username,display_name,share_feed')
+        .select('id,username,display_name,share_feed,avatar_url,avatar_tint')
         .single();
       if (error) throw error;
       return asProfile(data as ProfileRow);
@@ -248,7 +259,36 @@ export function createSupabaseProfileService(client: SupabaseClient): ProfileSer
         .from('profiles')
         .update({ share_feed: enabled })
         .eq('id', me)
-        .select('id,username,display_name,share_feed')
+        .select('id,username,display_name,share_feed,avatar_url,avatar_tint')
+        .single();
+      if (error) throw error;
+      return asProfile(data as ProfileRow);
+    },
+
+    async uploadAvatar(imageUri: string, mimeType = 'image/jpeg'): Promise<Profile> {
+      const me = await requireUserId(client);
+      if (!imageUri.trim()) throw new Error('Image URI is required.');
+      const extension = normalizeImageExtension(mimeType);
+      const filePath = `${me}/avatar-${Date.now()}.${extension}`;
+
+      const response = await fetch(imageUri);
+      if (!response.ok) throw new Error('Failed to read selected image.');
+      const blob = await response.blob();
+
+      const { error: uploadError } = await client.storage.from('avatars').upload(filePath, blob, {
+        contentType: mimeType,
+        upsert: true,
+      });
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = client.storage.from('avatars').getPublicUrl(filePath);
+      const avatarUrl = publicData.publicUrl;
+
+      const { data, error } = await client
+        .from('profiles')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', me)
+        .select('id,username,display_name,share_feed,avatar_url,avatar_tint')
         .single();
       if (error) throw error;
       return asProfile(data as ProfileRow);
@@ -259,7 +299,7 @@ export function createSupabaseProfileService(client: SupabaseClient): ProfileSer
       if (!normalized) return null;
       const { data, error } = await client
         .from('profiles')
-        .select('id,username,display_name,share_feed')
+        .select('id,username,display_name,share_feed,avatar_url,avatar_tint')
         .eq('username', normalized)
         .maybeSingle();
       if (error) throw error;

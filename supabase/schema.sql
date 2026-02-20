@@ -3,11 +3,33 @@
 
 create extension if not exists pgcrypto;
 
+create or replace function public.random_avatar_tint()
+returns text
+language sql
+volatile
+set search_path = public, pg_catalog
+as $$
+  select (
+    array[
+      '#5b6c8a',
+      '#6b8f71',
+      '#8a6b5b',
+      '#6b5b8a',
+      '#5b8a86',
+      '#8a855b',
+      '#7a5b8a',
+      '#5b7f8a'
+    ]
+  )[1 + floor(random() * 8)::int];
+$$;
+
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text not null unique check (char_length(username) between 3 and 24),
   display_name text not null check (char_length(display_name) between 1 and 40),
   share_feed boolean not null default true,
+  avatar_url text,
+  avatar_tint text not null default public.random_avatar_tint(),
   created_at timestamptz not null default now()
 );
 
@@ -108,7 +130,13 @@ create table if not exists public.chat_room_invites (
 );
 
 alter table public.profiles
-  add column if not exists share_feed boolean not null default true;
+  add column if not exists share_feed boolean not null default true,
+  add column if not exists avatar_url text,
+  add column if not exists avatar_tint text not null default public.random_avatar_tint();
+
+update public.profiles
+set avatar_tint = public.random_avatar_tint()
+where avatar_tint is null;
 
 alter table public.poop_entries
   add column if not exists visibility public.poop_entry_visibility not null default 'friends_default';
@@ -288,6 +316,12 @@ alter table public.chat_room_members enable row level security;
 alter table public.chat_messages enable row level security;
 alter table public.chat_room_invites enable row level security;
 
+insert into storage.buckets (id, name, public)
+select 'avatars', 'avatars', true
+where not exists (
+  select 1 from storage.buckets where id = 'avatars'
+);
+
 -- Profiles: anyone authenticated can read basic profile rows; users manage self.
 create policy profiles_select_authenticated
   on public.profiles
@@ -307,6 +341,37 @@ create policy profiles_update_self
   to authenticated
   using (auth.uid() = id)
   with check (auth.uid() = id);
+
+create policy storage_avatars_insert_own
+  on storage.objects
+  for insert
+  to authenticated
+  with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy storage_avatars_update_own
+  on storage.objects
+  for update
+  to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  )
+  with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy storage_avatars_delete_own
+  on storage.objects
+  for delete
+  to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
 
 -- Poop entries: owner CRUD + feed visibility for accepted friends when account sharing is enabled.
 create policy poop_entries_select_visible

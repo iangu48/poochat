@@ -1,11 +1,13 @@
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { FeedItem, PoopEntry } from '../types/domain';
+import { ProfileAvatar } from '../components/ProfileAvatar';
+import type { FeedItem, PoopEntry, Profile } from '../types/domain';
 import { styles } from './styles';
 
 type Props = {
   entries: PoopEntry[];
   feedItems: FeedItem[];
+  profilesById: Record<string, Profile>;
   loadingEntries: boolean;
   entryError: string;
   feedError: string;
@@ -28,6 +30,7 @@ export function HomeScreen(props: Props) {
   const {
     entries,
     feedItems,
+    profilesById,
     loadingEntries,
     entryError,
     feedError,
@@ -77,9 +80,16 @@ export function HomeScreen(props: Props) {
         {!!feedError && <Text style={styles.error}>{feedError}</Text>}
         {recentFeedItems.map((item) => (
           <View key={item.entryId} style={styles.card}>
-            <Text style={styles.cardTitle}>
-              {item.displayName} (@{item.username})
-            </Text>
+            <View style={styles.inlineRow}>
+              <ProfileAvatar
+                size={34}
+                avatarUrl={profilesById[item.subjectId]?.avatarUrl ?? null}
+                avatarTint={profilesById[item.subjectId]?.avatarTint ?? '#5b6c8a'}
+              />
+              <Text style={[styles.cardTitle, styles.inlineLeft]}>
+                {item.displayName} (@{item.username})
+              </Text>
+            </View>
             <Text style={styles.muted}>Occurred: {new Date(item.occurredAt).toLocaleString()}</Text>
             <Text style={styles.cardBody}>Rating: {item.rating}</Text>
           </View>

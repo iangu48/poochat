@@ -5,6 +5,8 @@ export type Profile = {
   username: string;
   displayName: string;
   shareFeed: boolean;
+  avatarUrl: string | null;
+  avatarTint: string;
 };
 
 export type PoopEntry = {

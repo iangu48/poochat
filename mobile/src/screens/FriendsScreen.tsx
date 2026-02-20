@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ProfileAvatar } from '../components/ProfileAvatar';
 import { ChatScreen, type ChatRoute } from './ChatScreen';
 import { styles } from './styles';
 import type { FeedItem, IncomingFriendRequest, Profile, ChatMessage, ChatRoom, ChatRoomInvite } from '../types/domain';
@@ -10,6 +11,7 @@ type Props = {
   socialSection: SocialSection;
   setSocialSection: (section: SocialSection) => void;
   feedItems: FeedItem[];
+  profilesById: Record<string, Profile>;
   feedError: string;
   onRefreshFeed: () => void;
   friendUsername: string;
@@ -35,6 +37,7 @@ type Props = {
   inviteParticipantLabels: Record<string, string>;
   inviteRoomLabels: Record<string, string>;
   chatRoomLabels: Record<string, string>;
+  chatRoomProfiles: Record<string, Profile>;
   chatUserLabels: Record<string, string>;
   currentUserId: string;
   showCreateGroup: boolean;
@@ -70,6 +73,7 @@ export function FriendsScreen(props: Props) {
     socialSection,
     setSocialSection,
     feedItems,
+    profilesById,
     feedError,
     onRefreshFeed,
     friendUsername,
@@ -117,7 +121,7 @@ export function FriendsScreen(props: Props) {
         </View>
       </View>
 
-      {socialSection === 'chat' && <ChatScreen {...chatProps} />}
+      {socialSection === 'chat' && <ChatScreen {...chatProps} profilesById={profilesById} />}
 
       {socialSection === 'feed' && (
         <>
@@ -127,9 +131,16 @@ export function FriendsScreen(props: Props) {
           {!!feedError && <Text style={styles.error}>{feedError}</Text>}
           {sortedFeed.map((item) => (
             <View key={item.entryId} style={styles.card}>
-              <Text style={styles.cardTitle}>
-                {item.displayName} (@{item.username})
-              </Text>
+              <View style={styles.inlineRow}>
+                <ProfileAvatar
+                  size={34}
+                  avatarUrl={profilesById[item.subjectId]?.avatarUrl ?? null}
+                  avatarTint={profilesById[item.subjectId]?.avatarTint ?? '#5b6c8a'}
+                />
+                <Text style={[styles.cardTitle, styles.inlineLeft]}>
+                  {item.displayName} (@{item.username})
+                </Text>
+              </View>
               <Text style={styles.muted}>{new Date(item.occurredAt).toLocaleString()}</Text>
               <Text style={styles.cardBody}>Rating: {item.rating}</Text>
             </View>
@@ -174,6 +185,7 @@ export function FriendsScreen(props: Props) {
           {friends.map((friend) => (
             <View key={friend.id} style={styles.card}>
               <View style={styles.inlineRow}>
+                <ProfileAvatar size={34} avatarUrl={friend.avatarUrl} avatarTint={friend.avatarTint} />
                 <Text style={[styles.cardTitle, styles.inlineLeft]}>
                   {friend.displayName} (@{friend.username})
                 </Text>
@@ -233,9 +245,16 @@ export function FriendsScreen(props: Props) {
                 <Text style={styles.cardTitle}>Incoming Requests</Text>
                 {incomingRequests.map((request) => (
                   <View key={request.id} style={styles.dropdownItem}>
-                    <Text style={styles.cardTitle}>
-                      {request.from.displayName} (@{request.from.username})
-                    </Text>
+                    <View style={styles.inlineRow}>
+                      <ProfileAvatar
+                        size={32}
+                        avatarUrl={request.from.avatarUrl}
+                        avatarTint={request.from.avatarTint}
+                      />
+                      <Text style={[styles.cardTitle, styles.inlineLeft]}>
+                        {request.from.displayName} (@{request.from.username})
+                      </Text>
+                    </View>
                     <TouchableOpacity style={styles.button} onPress={() => onAcceptRequest(request.id)}>
                       <View style={styles.buttonContentRow}>
                         <Ionicons name="checkmark" size={16} color="#fff" />

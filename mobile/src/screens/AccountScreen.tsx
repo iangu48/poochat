@@ -1,5 +1,6 @@
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ProfileAvatar } from '../components/ProfileAvatar';
 import type { LeaderboardRow, Profile } from '../types/domain';
 import { styles } from './styles';
 
@@ -13,11 +14,14 @@ type Props = {
   previousYearRank: number | null;
   selectedLeaderboardYear: number;
   leaderboardRows: LeaderboardRow[];
+  profilesById: Record<string, Profile>;
   leaderboardError: string;
   leaderboardLoading: boolean;
   onSelectLeaderboardYear: (year: number) => void;
   onRefreshLeaderboard: () => void;
   onToggleShareFeed: () => void;
+  onUploadAvatar: () => void;
+  avatarUploading: boolean;
   onSignOut: () => void;
 };
 
@@ -31,20 +35,38 @@ export function AccountScreen({
   previousYearRank,
   selectedLeaderboardYear,
   leaderboardRows,
+  profilesById,
   leaderboardError,
   leaderboardLoading,
   onSelectLeaderboardYear,
   onRefreshLeaderboard,
   onToggleShareFeed,
+  onUploadAvatar,
+  avatarUploading,
   onSignOut,
 }: Props) {
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Account</Text>
       <Text style={styles.muted}>{email ?? 'No email on file'}</Text>
-      <Text style={styles.muted}>
-        {profile.displayName} (@{profile.username})
-      </Text>
+      <View style={styles.profileHeader}>
+        <ProfileAvatar avatarUrl={profile.avatarUrl} avatarTint={profile.avatarTint} />
+        <View style={styles.profileHeaderText}>
+          <Text style={styles.muted}>
+            {profile.displayName} (@{profile.username})
+          </Text>
+          <TouchableOpacity
+            style={styles.buttonSecondary}
+            onPress={onUploadAvatar}
+            disabled={avatarUploading}
+          >
+            <View style={styles.buttonContentRow}>
+              <Ionicons name="image" size={16} color="#fff" />
+              <Text style={styles.buttonText}>{avatarUploading ? 'Uploading...' : 'Upload Photo'}</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </View>
       <Text style={styles.label}>Feed Visibility</Text>
       <Text style={styles.muted}>
         {profile.shareFeed ? 'Friends can see your entries in feed.' : 'Your entries are hidden from friend feed.'}
@@ -85,9 +107,16 @@ export function AccountScreen({
       {!!leaderboardError && <Text style={styles.error}>{leaderboardError}</Text>}
       {leaderboardRows.map((row) => (
         <View key={row.subjectId} style={styles.card}>
-          <Text style={styles.cardTitle}>
-            #{row.rank} {row.displayName} (@{row.username})
-          </Text>
+          <View style={styles.inlineRow}>
+            <ProfileAvatar
+              size={32}
+              avatarUrl={profilesById[row.subjectId]?.avatarUrl ?? null}
+              avatarTint={profilesById[row.subjectId]?.avatarTint ?? '#5b6c8a'}
+            />
+            <Text style={[styles.cardTitle, styles.inlineLeft]}>
+              #{row.rank} {row.displayName} (@{row.username})
+            </Text>
+          </View>
           <Text style={styles.muted}>
             Score {row.score} | Avg {row.avgRating.toFixed(2)}
           </Text>

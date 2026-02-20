@@ -1,6 +1,7 @@
 import { Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { ChatMessage, ChatRoom, ChatRoomInvite } from '../types/domain';
+import { ProfileAvatar } from '../components/ProfileAvatar';
+import type { ChatMessage, ChatRoom, ChatRoomInvite, Profile } from '../types/domain';
 import { styles } from './styles';
 
 export type ChatRoute = 'inbox' | 'room';
@@ -19,7 +20,9 @@ type Props = {
   inviteParticipantLabels: Record<string, string>;
   inviteRoomLabels: Record<string, string>;
   chatRoomLabels: Record<string, string>;
+  chatRoomProfiles: Record<string, Profile>;
   chatUserLabels: Record<string, string>;
+  profilesById: Record<string, Profile>;
   currentUserId: string;
   showCreateGroup: boolean;
   setShowCreateGroup: (next: boolean | ((prev: boolean) => boolean)) => void;
@@ -64,7 +67,9 @@ export function ChatScreen(props: Props) {
     inviteParticipantLabels,
     inviteRoomLabels,
     chatRoomLabels,
+    chatRoomProfiles,
     chatUserLabels,
+    profilesById,
     currentUserId,
     showCreateGroup,
     setShowCreateGroup,
@@ -95,6 +100,7 @@ export function ChatScreen(props: Props) {
   } = props;
 
   const hasInboxDropdown = showCreateGroup || showInviteQueue || showApprovalQueue;
+  const messageGroups = groupSequentialMessages(chatRows);
 
   return (
     <ScrollView contentContainerStyle={[styles.screen, styles.chatScreenWrap]}>
@@ -149,7 +155,16 @@ export function ChatScreen(props: Props) {
           {chatRooms.map((room) => (
             <TouchableOpacity key={room.id} style={styles.chatListItem} onPress={() => onOpenRoom(room.id)}>
               <View style={styles.chatListItemHeader}>
-                <Text style={styles.cardTitle}>{getRoomDisplayName(room, chatRoomLabels)}</Text>
+                <View style={styles.inlineRow}>
+                  {room.type === 'dm' ? (
+                    <ProfileAvatar
+                      size={32}
+                      avatarUrl={chatRoomProfiles[room.id]?.avatarUrl ?? null}
+                      avatarTint={chatRoomProfiles[room.id]?.avatarTint ?? '#5b6c8a'}
+                    />
+                  ) : null}
+                  <Text style={[styles.cardTitle, styles.inlineLeft]}>{getRoomDisplayName(room, chatRoomLabels)}</Text>
+                </View>
                 {approvalsByRoom[room.id] ? <Text style={styles.chatBadge}>{approvalsByRoom[room.id]} pending</Text> : null}
               </View>
               <Text style={styles.muted}>{room.type === 'dm' ? 'Direct chat' : 'Group chat'}</Text>
@@ -214,13 +229,30 @@ export function ChatScreen(props: Props) {
 
           {!!chatStatus && <Text style={styles.muted}>{chatStatus}</Text>}
           {!!chatError && <Text style={styles.error}>{chatError}</Text>}
-          {chatRows.map((row) => (
-            <View key={row.id} style={styles.card}>
-              <Text style={styles.cardTitle}>
-                {row.senderId === currentUserId ? 'You' : chatUserLabels[row.senderId] ?? 'Member'}
-              </Text>
-              <Text style={styles.cardBody}>{row.body}</Text>
-              <Text style={styles.muted}>{new Date(row.createdAt).toLocaleString()}</Text>
+          {messageGroups.map((group) => (
+            <View key={group.id} style={styles.card}>
+              <View style={styles.inlineRow}>
+                <ProfileAvatar
+                  size={30}
+                  avatarUrl={profilesById[group.senderId]?.avatarUrl ?? null}
+                  avatarTint={profilesById[group.senderId]?.avatarTint ?? '#5b6c8a'}
+                />
+                <Text style={[styles.cardTitle, styles.inlineLeft]}>
+                  {group.senderId === currentUserId ? 'You' : chatUserLabels[group.senderId] ?? 'Member'}
+                </Text>
+              </View>
+              {group.rows.map((row, index) => (
+                <Text
+                  key={row.id}
+                  style={[
+                    styles.chatGroupMessage,
+                    index === group.rows.length - 1 ? styles.chatGroupMessageLast : null,
+                  ]}
+                >
+                  {row.body}
+                </Text>
+              ))}
+              <Text style={styles.muted}>{new Date(group.rows[0].createdAt).toLocaleString()}</Text>
             </View>
           ))}
           {chatRows.length === 0 && <Text style={styles.muted}>No messages yet in this room.</Text>}
@@ -271,7 +303,16 @@ export function ChatScreen(props: Props) {
                 {approvedInvitesForMe.map((invite) => (
                   <View key={invite.id} style={styles.dropdownItem}>
                     <Text style={styles.cardTitle}>Room: {inviteRoomLabels[invite.roomId] ?? 'Direct Chat'}</Text>
-                    <Text style={styles.muted}>Proposer: {inviteParticipantLabels[invite.proposerId] ?? 'Member'}</Text>
+                    <View style={styles.inlineRow}>
+                      <ProfileAvatar
+                        size={28}
+                        avatarUrl={profilesById[invite.proposerId]?.avatarUrl ?? null}
+                        avatarTint={profilesById[invite.proposerId]?.avatarTint ?? '#5b6c8a'}
+                      />
+                      <Text style={[styles.muted, styles.inlineLeft]}>
+                        Proposer: {inviteParticipantLabels[invite.proposerId] ?? 'Member'}
+                      </Text>
+                    </View>
                     <TouchableOpacity style={styles.button} onPress={() => onJoinApprovedInvite(invite.id)}>
                       <View style={styles.buttonContentRow}>
                         <Ionicons name="enter" size={16} color="#fff" />
@@ -290,7 +331,16 @@ export function ChatScreen(props: Props) {
                 {approvalsRequired.map((invite) => (
                   <View key={invite.id} style={styles.dropdownItem}>
                     <Text style={styles.cardTitle}>Room: {inviteRoomLabels[invite.roomId] ?? 'Direct Chat'}</Text>
-                    <Text style={styles.muted}>Invitee: {inviteParticipantLabels[invite.inviteeId] ?? 'Member'}</Text>
+                    <View style={styles.inlineRow}>
+                      <ProfileAvatar
+                        size={28}
+                        avatarUrl={profilesById[invite.inviteeId]?.avatarUrl ?? null}
+                        avatarTint={profilesById[invite.inviteeId]?.avatarTint ?? '#5b6c8a'}
+                      />
+                      <Text style={[styles.muted, styles.inlineLeft]}>
+                        Invitee: {inviteParticipantLabels[invite.inviteeId] ?? 'Member'}
+                      </Text>
+                    </View>
                     <View style={styles.row}>
                       <TouchableOpacity style={styles.button} onPress={() => onApproveInvite(invite.id)}>
                         <View style={styles.buttonContentRow}>
@@ -341,8 +391,26 @@ export function ChatScreen(props: Props) {
             <Text style={styles.sectionTitle}>Pending Invites (This Room)</Text>
             {pendingInvites.map((invite) => (
               <View key={invite.id} style={styles.dropdownItem}>
-                <Text style={styles.cardTitle}>Invitee: {inviteParticipantLabels[invite.inviteeId] ?? 'Member'}</Text>
-                <Text style={styles.muted}>Proposed by: {inviteParticipantLabels[invite.proposerId] ?? 'Member'}</Text>
+                <View style={styles.inlineRow}>
+                  <ProfileAvatar
+                    size={28}
+                    avatarUrl={profilesById[invite.inviteeId]?.avatarUrl ?? null}
+                    avatarTint={profilesById[invite.inviteeId]?.avatarTint ?? '#5b6c8a'}
+                  />
+                  <Text style={[styles.cardTitle, styles.inlineLeft]}>
+                    Invitee: {inviteParticipantLabels[invite.inviteeId] ?? 'Member'}
+                  </Text>
+                </View>
+                <View style={styles.inlineRow}>
+                  <ProfileAvatar
+                    size={28}
+                    avatarUrl={profilesById[invite.proposerId]?.avatarUrl ?? null}
+                    avatarTint={profilesById[invite.proposerId]?.avatarTint ?? '#5b6c8a'}
+                  />
+                  <Text style={[styles.muted, styles.inlineLeft]}>
+                    Proposed by: {inviteParticipantLabels[invite.proposerId] ?? 'Member'}
+                  </Text>
+                </View>
                 {(activeRoomRole === 'owner' || activeRoomRole === 'admin') && (
                   <View style={styles.row}>
                     <TouchableOpacity style={styles.button} onPress={() => onApproveInvite(invite.id)}>
@@ -374,4 +442,23 @@ function getRoomDisplayName(room: ChatRoom, labels: Record<string, string>): str
   if (roomLabel?.trim()) return roomLabel.trim();
   if (room.name?.trim()) return room.name.trim();
   return room.type === 'dm' ? 'Direct Chat' : 'Untitled Group';
+}
+
+type MessageGroup = {
+  id: string;
+  senderId: string;
+  rows: ChatMessage[];
+};
+
+function groupSequentialMessages(rows: ChatMessage[]): MessageGroup[] {
+  const groups: MessageGroup[] = [];
+  for (const row of rows) {
+    const last = groups[groups.length - 1];
+    if (last && last.senderId === row.senderId) {
+      last.rows.push(row);
+      continue;
+    }
+    groups.push({ id: row.id, senderId: row.senderId, rows: [row] });
+  }
+  return groups;
 }

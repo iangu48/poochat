@@ -76,6 +76,7 @@ export default function App() {
         <HomeScreen
           entries={app.entries}
           feedItems={app.feedItems}
+          profilesById={app.profilesById}
           loadingEntries={app.loadingEntries}
           entryError={app.entryError}
           feedError={app.feedError}
@@ -125,7 +126,9 @@ export default function App() {
           inviteParticipantLabels={app.inviteParticipantLabels}
           inviteRoomLabels={app.inviteRoomLabels}
           chatRoomLabels={app.chatRoomLabels}
+          chatRoomProfiles={app.chatRoomProfiles}
           chatUserLabels={app.chatUserLabels}
+          profilesById={app.profilesById}
           currentUserId={app.currentUserId}
           showCreateGroup={app.showCreateGroup}
           setShowCreateGroup={app.setShowCreateGroup}
@@ -167,11 +170,14 @@ export default function App() {
           previousYearRank={app.previousYearRank}
           selectedLeaderboardYear={app.selectedLeaderboardYear}
           leaderboardRows={app.accountLeaderboardRows}
+          profilesById={app.profilesById}
           leaderboardError={app.accountLeaderboardError}
           leaderboardLoading={app.accountLeaderboardLoading}
           onSelectLeaderboardYear={(year) => void app.handleSelectLeaderboardYear(year)}
           onRefreshLeaderboard={() => void app.refreshAccountLeaderboard()}
           onToggleShareFeed={() => void app.handleToggleShareFeed()}
+          onUploadAvatar={() => void app.handleUploadAvatar()}
+          avatarUploading={app.avatarUploading}
           onSignOut={() => void app.handleSignOut()}
         />
       )}

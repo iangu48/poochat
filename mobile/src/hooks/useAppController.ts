@@ -51,8 +51,10 @@ export function useAppController() {
   const [socialSection, setSocialSection] = useState<SocialSection>('friends');
 
   const [myProfile, setMyProfile] = useState<Profile | null>(null);
+  const [profilesById, setProfilesById] = useState<Record<string, Profile>>({});
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [onboardingUsername, setOnboardingUsername] = useState('');
   const [onboardingDisplayName, setOnboardingDisplayName] = useState('');
 
@@ -97,6 +99,7 @@ export function useAppController() {
   const [inviteParticipantLabels, setInviteParticipantLabels] = useState<Record<string, string>>({});
   const [inviteRoomLabels, setInviteRoomLabels] = useState<Record<string, string>>({});
   const [chatRoomLabels, setChatRoomLabels] = useState<Record<string, string>>({});
+  const [chatRoomProfiles, setChatRoomProfiles] = useState<Record<string, Profile>>({});
   const [chatUserLabels, setChatUserLabels] = useState<Record<string, string>>({});
   const [messageBody, setMessageBody] = useState('');
   const [chatRows, setChatRows] = useState<ChatMessage[]>([]);
@@ -153,7 +156,9 @@ export function useAppController() {
       setInviteParticipantLabels({});
       setInviteRoomLabels({});
       setChatRoomLabels({});
+      setChatRoomProfiles({});
       setChatUserLabels({});
+      setProfilesById({});
       setAccountLeaderboardRows([]);
       setAccountLeaderboardError('');
       setCurrentYearRank(null);
@@ -224,6 +229,9 @@ export function useAppController() {
       const profile = await profileService.getMine();
       setMyProfile(profile);
       if (profile) {
+        setProfilesById((prev) => ({ ...prev, [profile.id]: profile }));
+      }
+      if (profile) {
         await Promise.all([refreshEntries(), refreshFeed(), refreshFriends(), refreshMyApprovedInvites()]);
         const rooms = await refreshRooms();
         await Promise.all([
@@ -257,6 +265,7 @@ export function useAppController() {
     try {
       const items = await feedService.listMineAndFriends(60);
       setFeedItems(items);
+      void hydrateProfilesByIds(items.map((item) => item.subjectId));
     } catch (error) {
       setFeedError(error instanceof Error ? error.message : 'Failed to load feed.');
     }
@@ -271,6 +280,10 @@ export function useAppController() {
       ]);
       setFriends(accepted);
       setIncomingRequests(incoming);
+      const nextProfiles = [...accepted, ...incoming.map((request) => request.from)];
+      if (nextProfiles.length > 0) {
+        setProfilesById((prev) => mergeProfiles(prev, nextProfiles));
+      }
     } catch (error) {
       setFriendError(error instanceof Error ? error.message : 'Failed to load friends.');
     }
@@ -293,16 +306,40 @@ export function useAppController() {
     }
   }
 
-  async function hydrateChatUserLabels(userIds: string[]): Promise<Record<string, string>> {
-    const ids = Array.from(new Set(userIds.map((id) => id.trim()).filter((id) => Boolean(id))));
-    if (ids.length === 0) return {};
+  async function hydrateProfilesByIds(ids: string[]): Promise<Record<string, Profile>> {
+    const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter((id) => Boolean(id))));
+    if (uniqueIds.length === 0) return {};
 
-    const { data, error } = await supabase.from('profiles').select('id,username,display_name').in('id', ids);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,username,display_name,share_feed,avatar_url,avatar_tint')
+      .in('id', uniqueIds);
     if (error) throw error;
 
-    const next: Record<string, string> = {};
+    const next: Record<string, Profile> = {};
     for (const row of data ?? []) {
-      next[String(row.id)] = formatProfileLabel(row.display_name, row.username);
+      const id = String(row.id);
+      next[id] = {
+        id,
+        username: String(row.username),
+        displayName: String(row.display_name),
+        shareFeed: Boolean(row.share_feed ?? true),
+        avatarUrl: row.avatar_url ? String(row.avatar_url) : null,
+        avatarTint: row.avatar_tint ? String(row.avatar_tint) : '#5b6c8a',
+      };
+    }
+
+    if (Object.keys(next).length > 0) {
+      setProfilesById((prev) => ({ ...prev, ...next }));
+    }
+    return next;
+  }
+
+  async function hydrateChatUserLabels(userIds: string[]): Promise<Record<string, string>> {
+    const hydratedProfiles = await hydrateProfilesByIds(userIds);
+    const next: Record<string, string> = {};
+    for (const profile of Object.values(hydratedProfiles)) {
+      next[profile.id] = formatProfileLabel(profile.displayName, profile.username);
     }
     if (Object.keys(next).length > 0) {
       setChatUserLabels((prev) => ({ ...prev, ...next }));
@@ -355,9 +392,13 @@ export function useAppController() {
       )
     );
     let hydratedUserLabels: Record<string, string> = {};
+    let hydratedProfilesById: Record<string, Profile> = {};
     if (otherUserIds.length > 0) {
+      hydratedProfilesById = await hydrateProfilesByIds(otherUserIds);
       hydratedUserLabels = await hydrateChatUserLabels(otherUserIds);
     }
+
+    const nextRoomProfiles: Record<string, Profile> = {};
 
     for (const room of directRooms) {
       const otherUserId = otherUserByRoom.get(room.id);
@@ -367,9 +408,15 @@ export function useAppController() {
         room.name?.trim() ||
         'Direct Chat';
       next[room.id] = label;
+      if (otherUserId && hydratedProfilesById[otherUserId]) {
+        nextRoomProfiles[room.id] = hydratedProfilesById[otherUserId];
+      } else if (otherUserId && profilesById[otherUserId]) {
+        nextRoomProfiles[room.id] = profilesById[otherUserId];
+      }
     }
 
     setChatRoomLabels((prev) => ({ ...prev, ...next }));
+    setChatRoomProfiles((prev) => ({ ...prev, ...nextRoomProfiles }));
   }
 
   async function refreshApprovalsRequired(rooms: ChatRoom[] = chatRooms): Promise<void> {
@@ -444,12 +491,10 @@ export function useAppController() {
     );
     if (ids.length === 0) return;
 
-    const { data, error } = await supabase.from('profiles').select('id,username,display_name').in('id', ids);
-    if (error) throw error;
-
+    const hydratedProfiles = await hydrateProfilesByIds(ids);
     const next: Record<string, string> = {};
-    for (const row of data ?? []) {
-      next[String(row.id)] = formatProfileLabel(row.display_name, row.username);
+    for (const profile of Object.values(hydratedProfiles)) {
+      next[profile.id] = formatProfileLabel(profile.displayName, profile.username);
     }
     setInviteParticipantLabels((prev) => ({ ...prev, ...next }));
   }
@@ -546,6 +591,7 @@ export function useAppController() {
         displayName: onboardingDisplayName,
       });
       setMyProfile(profile);
+      setProfilesById((prev) => ({ ...prev, [profile.id]: profile }));
       await Promise.all([
         refreshEntries(),
         refreshFriends(),
@@ -757,6 +803,7 @@ export function useAppController() {
     try {
       const rows = await leaderboardService.listYear(year);
       setAccountLeaderboardRows(rows);
+      void hydrateProfilesByIds(rows.map((row) => row.subjectId));
       const myRank = rows.find((row) => row.subjectId === profileId)?.rank ?? null;
       if (year === currentYear) setCurrentYearRank(myRank);
       if (year === previousYear) setPreviousYearRank(myRank);
@@ -836,6 +883,56 @@ export function useAppController() {
     }
   }
 
+  async function handleUploadAvatar(): Promise<void> {
+    if (!myProfile) return;
+    setProfileError('');
+    setAvatarUploading(true);
+    try {
+      const imagePickerModule = 'expo-image-picker';
+      const ImagePicker = (await import(imagePickerModule)) as {
+        requestMediaLibraryPermissionsAsync: () => Promise<{ status: string }>;
+        launchImageLibraryAsync: (options: {
+          mediaTypes?: string[];
+          allowsEditing?: boolean;
+          aspect?: [number, number];
+          quality?: number;
+        }) => Promise<{
+          canceled: boolean;
+          assets?: Array<{ uri: string; mimeType?: string | null }>;
+        }>;
+      };
+
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== 'granted') {
+        setProfileError('Photo permission is required to upload an avatar.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset?.uri) throw new Error('No image selected.');
+
+      const updated = await profileService.uploadAvatar(asset.uri, asset.mimeType ?? 'image/jpeg');
+      setMyProfile(updated);
+      setProfilesById((prev) => ({ ...prev, [updated.id]: updated }));
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('expo-image-picker')) {
+        setProfileError('Avatar upload requires expo-image-picker. Run `npx expo install expo-image-picker`.');
+      } else {
+        setProfileError(error instanceof Error ? error.message : 'Failed to upload avatar.');
+      }
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
   async function handleRefreshChatInbox(): Promise<void> {
     const rooms = await refreshRooms();
     await Promise.all([refreshMyApprovedInvites(), refreshApprovalsRequired(rooms)]);
@@ -872,8 +969,10 @@ export function useAppController() {
     handleSendPhoneOtp,
     handleVerifyPhoneOtp,
     myProfile,
+    profilesById,
     profileLoading,
     profileError,
+    avatarUploading,
     onboardingUsername,
     setOnboardingUsername,
     onboardingDisplayName,
@@ -881,6 +980,7 @@ export function useAppController() {
     handleSaveProfile,
     handleSignOut,
     handleToggleShareFeed,
+    handleUploadAvatar,
     entries,
     loadingEntries,
     entryError,
@@ -931,6 +1031,7 @@ export function useAppController() {
     inviteParticipantLabels,
     inviteRoomLabels,
     chatRoomLabels,
+    chatRoomProfiles,
     chatUserLabels,
     showCreateGroup,
     setShowCreateGroup,
@@ -1015,4 +1116,12 @@ function formatProfileLabel(displayName: unknown, username: unknown): string {
   if (cleanDisplay) return cleanDisplay;
   if (cleanUsername) return `@${cleanUsername}`;
   return 'Member';
+}
+
+function mergeProfiles(existing: Record<string, Profile>, profiles: Profile[]): Record<string, Profile> {
+  const next = { ...existing };
+  for (const profile of profiles) {
+    next[profile.id] = profile;
+  }
+  return next;
 }

@@ -39,6 +39,7 @@ export interface ProfileService {
   getMine(): Promise<Profile | null>;
   upsertMine(input: UpsertProfileInput): Promise<Profile>;
   setShareFeed(enabled: boolean): Promise<Profile>;
+  uploadAvatar(imageUri: string, mimeType?: string): Promise<Profile>;
   findByUsername(username: string): Promise<Profile | null>;
 }
 
