@@ -896,9 +896,10 @@ export function useAppController() {
           allowsEditing?: boolean;
           aspect?: [number, number];
           quality?: number;
+          base64?: boolean;
         }) => Promise<{
           canceled: boolean;
-          assets?: Array<{ uri: string; mimeType?: string | null }>;
+          assets?: Array<{ uri: string; mimeType?: string | null; base64?: string | null }>;
         }>;
       };
 
@@ -913,13 +914,18 @@ export function useAppController() {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.85,
+        base64: true,
       });
 
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset?.uri) throw new Error('No image selected.');
 
-      const updated = await profileService.uploadAvatar(asset.uri, asset.mimeType ?? 'image/jpeg');
+      const updated = await profileService.uploadAvatar(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.base64 ?? undefined
+      );
       setMyProfile(updated);
       setProfilesById((prev) => ({ ...prev, [updated.id]: updated }));
     } catch (error) {

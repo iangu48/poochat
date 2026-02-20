@@ -206,6 +206,21 @@ as $$
   );
 $$;
 
+create or replace function public.is_room_member(target_room_id uuid, target_user_id uuid default auth.uid())
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_catalog
+as $$
+  select exists (
+    select 1
+    from public.chat_room_members m
+    where m.room_id = target_room_id
+      and m.user_id = target_user_id
+  );
+$$;
+
 drop trigger if exists poop_entries_touch_updated_at on public.poop_entries;
 create trigger poop_entries_touch_updated_at
 before update on public.poop_entries
@@ -348,6 +363,14 @@ create policy storage_avatars_insert_own
   to authenticated
   with check (
     bucket_id = 'avatars'
+  );
+
+create policy storage_avatars_select_own
+  on storage.objects
+  for select
+  to authenticated
+  using (
+    bucket_id = 'avatars'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
@@ -357,11 +380,11 @@ create policy storage_avatars_update_own
   to authenticated
   using (
     bucket_id = 'avatars'
-    and (storage.foldername(name))[1] = auth.uid()::text
+    and owner = auth.uid()
   )
   with check (
     bucket_id = 'avatars'
-    and (storage.foldername(name))[1] = auth.uid()::text
+    and owner = auth.uid()
   );
 
 create policy storage_avatars_delete_own
@@ -477,8 +500,7 @@ create policy chat_room_members_select_member
   for select
   to authenticated
   using (
-    auth.uid() = user_id
-    or public.is_room_admin(public.chat_room_members.room_id)
+    public.is_room_member(public.chat_room_members.room_id)
   );
 
 create policy chat_room_members_insert_self_or_room_creator

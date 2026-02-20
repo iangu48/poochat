@@ -219,6 +219,73 @@ function normalizeImageExtension(mimeType: string): string {
   return 'jpg';
 }
 
+async function readImagePayload(imageUri: string): Promise<Blob | ArrayBuffer> {
+  const response = await fetch(imageUri);
+  if (response.ok) {
+    const blob = await response.blob();
+    if (blob.size > 0) return blob;
+  }
+
+  const fileSystemModule = 'expo-file-system';
+  const FileSystem = (await import(fileSystemModule)) as {
+    EncodingType: { Base64: 'base64' };
+    readAsStringAsync: (fileUri: string, options: { encoding: 'base64' }) => Promise<string>;
+  };
+
+  const base64 = await FileSystem.readAsStringAsync(imageUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const bytes = base64ToUint8Array(base64);
+  if (bytes.byteLength === 0) throw new Error('Selected image has no content.');
+  const out = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(out).set(bytes);
+  return out;
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let clean = base64.replace(/[^A-Za-z0-9+/=]/g, '');
+  while (clean.length % 4 !== 0) clean += '=';
+
+  const output: number[] = [];
+  for (let i = 0; i < clean.length; i += 4) {
+    const c1 = chars.indexOf(clean[i]);
+    const c2 = chars.indexOf(clean[i + 1]);
+    const c3 = clean[i + 2] === '=' ? -1 : chars.indexOf(clean[i + 2]);
+    const c4 = clean[i + 3] === '=' ? -1 : chars.indexOf(clean[i + 3]);
+    if (c1 < 0 || c2 < 0) continue;
+
+    const b1 = (c1 << 2) | (c2 >> 4);
+    output.push(b1 & 0xff);
+    if (c3 >= 0) {
+      const b2 = ((c2 & 0x0f) << 4) | (c3 >> 2);
+      output.push(b2 & 0xff);
+    }
+    if (c4 >= 0 && c3 >= 0) {
+      const b3 = ((c3 & 0x03) << 6) | c4;
+      output.push(b3 & 0xff);
+    }
+  }
+  return new Uint8Array(output);
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const bytes = base64ToUint8Array(base64);
+  const out = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(out).set(bytes);
+  return out;
+}
+
+function extractAvatarObjectPath(avatarUrl: string): string | null {
+  const trimmed = avatarUrl.trim();
+  if (!trimmed) return null;
+  const marker = '/storage/v1/object/public/avatars/';
+  const index = trimmed.indexOf(marker);
+  if (index < 0) return null;
+  const path = trimmed.slice(index + marker.length).split('?')[0] ?? '';
+  return path.trim() || null;
+}
+
 export function createSupabaseProfileService(client: SupabaseClient): ProfileService {
   return {
     async getMine(): Promise<Profile | null> {
@@ -265,19 +332,28 @@ export function createSupabaseProfileService(client: SupabaseClient): ProfileSer
       return asProfile(data as ProfileRow);
     },
 
-    async uploadAvatar(imageUri: string, mimeType = 'image/jpeg'): Promise<Profile> {
+    async uploadAvatar(imageUri: string, mimeType = 'image/jpeg', base64Data?: string): Promise<Profile> {
       const me = await requireUserId(client);
       if (!imageUri.trim()) throw new Error('Image URI is required.');
       const extension = normalizeImageExtension(mimeType);
       const filePath = `${me}/avatar-${Date.now()}.${extension}`;
+      const { data: existingProfile, error: existingProfileError } = await client
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', me)
+        .maybeSingle();
+      if (existingProfileError) throw existingProfileError;
+      const previousAvatarPath = existingProfile?.avatar_url
+        ? extractAvatarObjectPath(String(existingProfile.avatar_url))
+        : null;
+      const filePayload =
+        base64Data && base64Data.trim().length > 0
+          ? base64ToArrayBuffer(base64Data)
+          : await readImagePayload(imageUri);
 
-      const response = await fetch(imageUri);
-      if (!response.ok) throw new Error('Failed to read selected image.');
-      const blob = await response.blob();
-
-      const { error: uploadError } = await client.storage.from('avatars').upload(filePath, blob, {
+      const { error: uploadError } = await client.storage.from('avatars').upload(filePath, filePayload, {
         contentType: mimeType,
-        upsert: true,
+        upsert: false,
       });
       if (uploadError) throw uploadError;
 
@@ -291,6 +367,36 @@ export function createSupabaseProfileService(client: SupabaseClient): ProfileSer
         .select('id,username,display_name,share_feed,avatar_url,avatar_tint')
         .single();
       if (error) throw error;
+
+      if (previousAvatarPath && previousAvatarPath !== filePath) {
+        const { error: removePreviousError } = await client.storage.from('avatars').remove([previousAvatarPath]);
+        if (removePreviousError) {
+          console.warn(
+            '[supabase:storage] failed removing previous avatar path',
+            removePreviousError.message
+          );
+        }
+      }
+
+      // Sweep any stale avatars in the user's folder to avoid storage growth.
+      const { data: folderObjects, error: listError } = await client.storage.from('avatars').list(me, {
+        limit: 100,
+        sortBy: { column: 'name', order: 'asc' },
+      });
+      if (listError) {
+        console.warn('[supabase:storage] failed listing avatar folder', listError.message);
+      } else {
+        const stalePaths = (folderObjects ?? [])
+          .map((object) => `${me}/${object.name}`)
+          .filter((path) => path !== filePath);
+        if (stalePaths.length > 0) {
+          const { error: sweepError } = await client.storage.from('avatars').remove(stalePaths);
+          if (sweepError) {
+            console.warn('[supabase:storage] failed sweeping stale avatars', sweepError.message);
+          }
+        }
+      }
+
       return asProfile(data as ProfileRow);
     },
 
