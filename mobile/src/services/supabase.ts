@@ -446,6 +446,32 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
       return asPoopEntry(data as PoopRow);
     },
 
+    async updateMine(
+      entryId: UUID,
+      input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'note'>>
+    ): Promise<PoopEntry> {
+      const userId = await requireUserId(client);
+      const updatePayload: Record<string, unknown> = {};
+      if (typeof input.occurredAt === 'string' && input.occurredAt.trim()) {
+        updatePayload.occurred_at = input.occurredAt.trim();
+      }
+      if (typeof input.bristolType === 'number') updatePayload.bristol_type = input.bristolType;
+      if (typeof input.rating === 'number') updatePayload.rating = input.rating;
+      if (Object.prototype.hasOwnProperty.call(input, 'note')) {
+        updatePayload.note = input.note?.trim() ? input.note.trim() : null;
+      }
+
+      const { data, error } = await client
+        .from('poop_entries')
+        .update(updatePayload)
+        .eq('id', entryId)
+        .eq('user_id', userId)
+        .select('id,user_id,occurred_at,bristol_type,rating,note')
+        .single();
+      if (error) throw error;
+      return asPoopEntry(data as PoopRow);
+    },
+
     async deleteMine(entryId: UUID): Promise<void> {
       const userId = await requireUserId(client);
       const { error } = await client.from('poop_entries').delete().eq('id', entryId).eq('user_id', userId);

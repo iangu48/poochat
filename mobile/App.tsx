@@ -85,21 +85,27 @@ export default function App() {
           feedLoading={app.feedLoading}
           addEntryLoading={app.addEntryLoading}
           deletingEntryIds={app.deletingEntryIds}
+          isEditingEntry={Boolean(app.editingEntryId)}
           entryError={app.entryError}
           feedError={app.feedError}
           showEntryComposer={app.showEntryComposer}
           bristolType={app.bristolType}
           rating={app.rating}
           note={app.note}
+          entryDate={app.entryDate}
+          entryTime={app.entryTime}
           onRefreshEntries={() => void app.refreshEntries()}
           onRefreshFeed={() => void app.refreshFeed()}
           onDeleteEntry={(entryId) => void app.handleDeleteEntry(entryId)}
-          onToggleComposer={() => app.setShowEntryComposer((prev) => !prev)}
+          onEditEntry={app.handleStartEditEntry}
+          onToggleComposer={app.openAddEntryComposer}
           onBristolTypeChange={app.setBristolType}
           onRatingChange={app.setRating}
           onNoteChange={app.setNote}
+          onEntryDateChange={app.setEntryDate}
+          onEntryTimeChange={app.setEntryTime}
           onAddEntry={() => void app.handleAddEntry()}
-          onCloseComposer={() => app.setShowEntryComposer(false)}
+          onCloseComposer={app.closeEntryComposer}
         />
       )}
 

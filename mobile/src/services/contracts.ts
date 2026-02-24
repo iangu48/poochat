@@ -20,6 +20,10 @@ export type NewPoopEntryInput = {
 export interface PoopService {
   listMine(limit?: number): Promise<PoopEntry[]>;
   createMine(input: NewPoopEntryInput): Promise<PoopEntry>;
+  updateMine(
+    entryId: UUID,
+    input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'note'>>
+  ): Promise<PoopEntry>;
   deleteMine(entryId: UUID): Promise<void>;
 }
 

@@ -70,9 +70,12 @@ export function useAppController() {
   const [bristolType, setBristolType] = useState('4');
   const [rating, setRating] = useState('3');
   const [note, setNote] = useState('');
+  const [entryDate, setEntryDate] = useState(formatDateInput(new Date()));
+  const [entryTime, setEntryTime] = useState(formatTimeInput(new Date()));
   const [showEntryComposer, setShowEntryComposer] = useState(false);
   const [addEntryLoading, setAddEntryLoading] = useState(false);
   const [deletingEntryIds, setDeletingEntryIds] = useState<string[]>([]);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedError, setFeedError] = useState('');
 
@@ -650,20 +653,60 @@ export function useAppController() {
     try {
       const typeValue = clampInt(Number(bristolType), 1, 7);
       const ratingValue = clampInt(Number(rating), 1, 5);
-      await poopService.createMine({
-        occurredAt: new Date().toISOString(),
-        bristolType: typeValue as 1 | 2 | 3 | 4 | 5 | 6 | 7,
-        rating: ratingValue as 1 | 2 | 3 | 4 | 5,
-        note: note.trim() || undefined,
-      });
+      const occurredAtIso = combineDateTimeInputs(entryDate, entryTime);
+      if (editingEntryId) {
+        await poopService.updateMine(editingEntryId, {
+          occurredAt: occurredAtIso,
+          bristolType: typeValue as 1 | 2 | 3 | 4 | 5 | 6 | 7,
+          rating: ratingValue as 1 | 2 | 3 | 4 | 5,
+          note: note.trim() || undefined,
+        });
+      } else {
+        await poopService.createMine({
+          occurredAt: occurredAtIso,
+          bristolType: typeValue as 1 | 2 | 3 | 4 | 5 | 6 | 7,
+          rating: ratingValue as 1 | 2 | 3 | 4 | 5,
+          note: note.trim() || undefined,
+        });
+      }
       setNote('');
+      setEditingEntryId(null);
       setShowEntryComposer(false);
       await Promise.all([refreshEntries(), refreshFeed()]);
     } catch (error) {
-      setEntryError(error instanceof Error ? error.message : 'Failed to add entry.');
+      setEntryError(error instanceof Error ? error.message : 'Failed to save entry.');
     } finally {
       setAddEntryLoading(false);
     }
+  }
+
+  function openAddEntryComposer(): void {
+    setEntryError('');
+    setEditingEntryId(null);
+    setBristolType('4');
+    setRating('3');
+    setNote('');
+    const now = new Date();
+    setEntryDate(formatDateInput(now));
+    setEntryTime(formatTimeInput(now));
+    setShowEntryComposer(true);
+  }
+
+  function closeEntryComposer(): void {
+    setEditingEntryId(null);
+    setShowEntryComposer(false);
+  }
+
+  function handleStartEditEntry(entry: PoopEntry): void {
+    setEntryError('');
+    setEditingEntryId(entry.id);
+    setBristolType(String(entry.bristolType));
+    setRating(String(entry.rating));
+    setNote(entry.note ?? '');
+    const occurredAtDate = new Date(entry.occurredAt);
+    setEntryDate(formatDateInput(occurredAtDate));
+    setEntryTime(formatTimeInput(occurredAtDate));
+    setShowEntryComposer(true);
   }
 
   async function handleDeleteEntry(entryId: string): Promise<void> {
@@ -1114,14 +1157,21 @@ export function useAppController() {
     setRating,
     note,
     setNote,
+    entryDate,
+    setEntryDate,
+    entryTime,
+    setEntryTime,
     showEntryComposer,
-    setShowEntryComposer,
+    editingEntryId,
     feedItems,
     feedError,
     refreshEntries,
     refreshFeed,
     handleDeleteEntry,
     handleAddEntry,
+    openAddEntryComposer,
+    closeEntryComposer,
+    handleStartEditEntry,
     friendUsername,
     setFriendUsername,
     friends,
@@ -1203,6 +1253,31 @@ export function useAppController() {
 function clampInt(value: number, min: number, max: number): number {
   if (Number.isNaN(value)) return min;
   return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function formatDateInput(value: Date): string {
+  if (Number.isNaN(value.getTime())) return '';
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatTimeInput(value: Date): string {
+  if (Number.isNaN(value.getTime())) return '';
+  const hours = String(value.getHours()).padStart(2, '0');
+  const minutes = String(value.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function combineDateTimeInputs(dateInput: string, timeInput: string): string {
+  const date = dateInput.trim();
+  const time = timeInput.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Date must be in YYYY-MM-DD format.');
+  if (!/^\d{2}:\d{2}$/.test(time)) throw new Error('Time must be in HH:mm format.');
+  const combined = new Date(`${date}T${time}:00`);
+  if (Number.isNaN(combined.getTime())) throw new Error('Invalid date/time.');
+  return combined.toISOString();
 }
 
 function asRealtimeMessage(
