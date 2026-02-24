@@ -503,6 +503,8 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#161b22',
     marginBottom: 4,
+    position: 'relative',
+    overflow: 'hidden',
   },
   calendarCellOutside: {
     borderColor: '#1f2937',
@@ -511,11 +513,44 @@ export const styles = StyleSheet.create({
   },
   calendarCellToday: {
     borderWidth: 2,
+    borderColor: '#58a6ff',
+    shadowColor: '#58a6ff',
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
   },
   calendarCellText: {
     color: '#f0f6fc',
     fontSize: 12,
     fontWeight: '600',
+  },
+  calendarEntryMarkerRow: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  calendarEntryDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#c9d1d9',
+  },
+  calendarEntryDotOutside: {
+    opacity: 0.75,
+  },
+  calendarEntryPlus: {
+    color: '#c9d1d9',
+    fontSize: 8,
+    fontWeight: '700',
+    lineHeight: 8,
+  },
+  calendarCellTextToday: {
+    color: '#ffffff',
+    fontWeight: '800',
   },
   calendarCellTextOutside: {
     color: '#6e7681',

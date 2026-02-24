@@ -31,7 +31,7 @@ export function MonthOverviewSection(props: Props) {
   return (
     <>
       <View style={styles.homeSectionHeader}>
-        <Text style={styles.title}>This Month</Text>
+        <Text style={styles.title}>Your Month</Text>
       </View>
       <View style={styles.monthStatsRow}>
         <View style={styles.monthStatCard}>
@@ -94,7 +94,23 @@ export function MonthOverviewSection(props: Props) {
                 cell.inCurrentMonth && cell.isToday ? styles.calendarCellToday : null,
               ]}
             >
-              <Text style={[styles.calendarCellText, !cell.inCurrentMonth ? styles.calendarCellTextOutside : null]}>{cell.day}</Text>
+              {cell.entryCount >= 2 ? (
+                <View style={[styles.calendarEntryMarkerRow, !cell.inCurrentMonth ? styles.calendarEntryDotOutside : null]}>
+                  {Array.from({ length: Math.min(3, cell.entryCount) }).map((_, dotIndex) => (
+                    <View key={`dot-${index}-${dotIndex}`} style={styles.calendarEntryDot} />
+                  ))}
+                  {cell.entryCount > 3 ? <Text style={styles.calendarEntryPlus}>+</Text> : null}
+                </View>
+              ) : null}
+              <Text
+                style={[
+                  styles.calendarCellText,
+                  !cell.inCurrentMonth ? styles.calendarCellTextOutside : null,
+                  cell.inCurrentMonth && cell.isToday ? styles.calendarCellTextToday : null,
+                ]}
+              >
+                {cell.day}
+              </Text>
             </View>
           ))}
         </View>

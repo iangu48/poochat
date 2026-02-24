@@ -3,6 +3,7 @@ import type { PoopEntry } from '../../types/domain';
 export type CalendarCell = {
   day: number;
   rating: number | null;
+  entryCount: number;
   isToday: boolean;
   inCurrentMonth: boolean;
 };
@@ -34,9 +35,11 @@ export function getMonthSummary(entries: PoopEntry[], visibleMonthStart: Date, n
   const uniqueLoggedDays = new Set(monthEntries.map((entry) => getLocalDateKey(new Date(entry.occurredAt)))).size;
 
   const latestRatingByDay: Record<string, number> = {};
+  const entryCountByDay: Record<string, number> = {};
   const sorted = [...monthEntries].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
   for (const entry of sorted) {
     const key = getLocalDateKey(new Date(entry.occurredAt));
+    entryCountByDay[key] = (entryCountByDay[key] ?? 0) + 1;
     if (latestRatingByDay[key] == null) {
       latestRatingByDay[key] = Number(entry.rating);
     }
@@ -51,6 +54,7 @@ export function getMonthSummary(entries: PoopEntry[], visibleMonthStart: Date, n
     calendarCells.push({
       day: prevMonthDays - leadingEmpty + i + 1,
       rating: null,
+      entryCount: 0,
       isToday: false,
       inCurrentMonth: false,
     });
@@ -62,6 +66,7 @@ export function getMonthSummary(entries: PoopEntry[], visibleMonthStart: Date, n
     calendarCells.push({
       day,
       rating: latestRatingByDay[key] ?? null,
+      entryCount: entryCountByDay[key] ?? 0,
       isToday:
         current.getFullYear() === now.getFullYear() &&
         current.getMonth() === now.getMonth() &&
@@ -75,6 +80,7 @@ export function getMonthSummary(entries: PoopEntry[], visibleMonthStart: Date, n
     calendarCells.push({
       day: nextMonthDay,
       rating: null,
+      entryCount: 0,
       isToday: false,
       inCurrentMonth: false,
     });
@@ -98,7 +104,13 @@ export function formatEntryTimestamp(isoValue: string): string {
     date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
-  return isToday ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : date.toLocaleDateString();
+  if (isToday) return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfEntryDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffMs = startOfToday.getTime() - startOfEntryDay.getTime();
+  const diffDays = Math.max(1, Math.floor(diffMs / 86400000));
+  return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
 }
 
 export function getRatingEmotion(value: number): string {
