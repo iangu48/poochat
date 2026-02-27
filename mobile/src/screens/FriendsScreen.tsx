@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Dimensions, FlatList, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileAvatar } from '../components/ProfileAvatar';
-import { ChatScreen, type ChatRoute } from './ChatScreen';
 import { styles } from './styles';
-import type { FeedItem, IncomingFriendRequest, Profile, ChatMessage, ChatRoom, ChatRoomInvite } from '../types/domain';
+import { BristolTypeChip } from './home/components/EntryVisuals';
+import { formatEntryTimestamp, getRatingEmoji, getRatingEmotion } from './home/utils';
+import type { FeedComment, FeedItem, IncomingFriendRequest, Profile } from '../types/domain';
 import type { SocialSection } from '../hooks/useAppController';
 
 type Props = {
@@ -12,9 +13,14 @@ type Props = {
   setSocialSection: (section: SocialSection) => void;
   feedItems: FeedItem[];
   profilesById: Record<string, Profile>;
+  feedCommentsByEntry: Record<string, FeedComment[]>;
+  feedCommentDraftByEntry: Record<string, string>;
+  feedCommentSubmittingEntryId: string;
   feedError: string;
   feedLoading: boolean;
   onRefreshFeed: () => void;
+  onFeedCommentDraftChange: (entryId: string, value: string) => void;
+  onAddFeedComment: (entryId: string) => Promise<void>;
   friendUsername: string;
   friends: Profile[];
   incomingRequests: IncomingFriendRequest[];
@@ -23,63 +29,10 @@ type Props = {
   friendsLoading: boolean;
   sendFriendRequestLoading: boolean;
   acceptingRequestIds: string[];
-  openDirectChatLoading: boolean;
   onFriendUsernameChange: (value: string) => void;
   onSendFriendRequest: () => Promise<void>;
   onRefreshFriends: () => void;
   onAcceptRequest: (friendshipId: string) => void;
-  onOpenDirectChat: (friendUserId: string) => void;
-  chatRoute: ChatRoute;
-  setChatRoute: (route: ChatRoute) => void;
-  activeRoomId: string;
-  activeRoom: ChatRoom | null;
-  activeRoomRole: 'owner' | 'admin' | 'member' | null;
-  chatRooms: ChatRoom[];
-  approvalsByRoom: Record<string, number>;
-  approvalsRequired: ChatRoomInvite[];
-  approvedInvitesForMe: ChatRoomInvite[];
-  pendingInvites: ChatRoomInvite[];
-  inviteParticipantLabels: Record<string, string>;
-  inviteRoomLabels: Record<string, string>;
-  chatRoomLabels: Record<string, string>;
-  chatRoomProfiles: Record<string, Profile>;
-  chatUserLabels: Record<string, string>;
-  currentUserId: string;
-  showCreateGroup: boolean;
-  setShowCreateGroup: (next: boolean | ((prev: boolean) => boolean)) => void;
-  showInviteQueue: boolean;
-  setShowInviteQueue: (next: boolean | ((prev: boolean) => boolean)) => void;
-  showApprovalQueue: boolean;
-  setShowApprovalQueue: (next: boolean | ((prev: boolean) => boolean)) => void;
-  showRoomActions: boolean;
-  setShowRoomActions: (next: boolean | ((prev: boolean) => boolean)) => void;
-  groupName: string;
-  setGroupName: (value: string) => void;
-  inviteUsername: string;
-  setInviteUsername: (value: string) => void;
-  messageBody: string;
-  setMessageBody: (value: string) => void;
-  chatRows: ChatMessage[];
-  chatStatus: string;
-  chatError: string;
-  chatRefreshInboxLoading: boolean;
-  chatCreateGroupLoading: boolean;
-  chatJoinInviteIdsLoading: string[];
-  chatApproveInviteIdsLoading: string[];
-  chatRejectInviteIdsLoading: string[];
-  chatOpenRoomLoadingId: string;
-  chatProposeInviteLoading: boolean;
-  chatRefreshMessagesLoading: boolean;
-  chatSendMessageLoading: boolean;
-  onRefreshInbox: () => void;
-  onCreateGroup: () => void;
-  onJoinApprovedInvite: (inviteId: string) => void;
-  onApproveInvite: (inviteId: string) => void;
-  onRejectInvite: (inviteId: string) => void;
-  onOpenRoom: (roomId: string) => void;
-  onProposeInvite: () => void;
-  onRefreshMessages: () => void;
-  onSendMessage: () => void;
 };
 
 export function FriendsScreen(props: Props) {
@@ -88,9 +41,14 @@ export function FriendsScreen(props: Props) {
     setSocialSection,
     feedItems,
     profilesById,
+    feedCommentsByEntry,
+    feedCommentDraftByEntry,
+    feedCommentSubmittingEntryId,
     feedError,
     feedLoading,
     onRefreshFeed,
+    onFeedCommentDraftChange,
+    onAddFeedComment,
     friendUsername,
     friends,
     incomingRequests,
@@ -99,29 +57,120 @@ export function FriendsScreen(props: Props) {
     friendsLoading,
     sendFriendRequestLoading,
     acceptingRequestIds,
-    openDirectChatLoading,
     onFriendUsernameChange,
     onSendFriendRequest,
     onRefreshFriends,
     onAcceptRequest,
-    onOpenDirectChat,
-    ...chatProps
   } = props;
 
   const [showFriendActions, setShowFriendActions] = useState(false);
   const [showIncomingRequests, setShowIncomingRequests] = useState(false);
+  const [selectedFeedEntryId, setSelectedFeedEntryId] = useState<string | null>(null);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const hasFriendDropdown = showFriendActions || showIncomingRequests;
 
+  const commentInputRef = useRef<any>(null);
+  const screenHeight = Dimensions.get('window').height;
+  const minDrawerHeight = Math.round(screenHeight * 0.72);
+  const maxDrawerHeight = Math.round(screenHeight * 0.92);
+  const drawerHeight = useRef(new Animated.Value(minDrawerHeight)).current;
+  const drawerHeightRef = useRef(minDrawerHeight);
+  const panStartHeightRef = useRef(minDrawerHeight);
   const sortedFeed = [...feedItems].sort((a, b) => +new Date(b.occurredAt) - +new Date(a.occurredAt));
+  const selectedFeedItem = selectedFeedEntryId ? sortedFeed.find((item) => item.entryId === selectedFeedEntryId) ?? null : null;
+  const selectedComments = selectedFeedEntryId ? feedCommentsByEntry[selectedFeedEntryId] ?? [] : [];
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = Keyboard.addListener(showEvent, (event) => {
+      const next = Math.max(0, event.endCoordinates?.height ?? 0);
+      setKeyboardOffset(next);
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => setKeyboardOffset(0));
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
 
   async function handleSendFriendRequestPress(): Promise<void> {
     await onSendFriendRequest();
     setShowFriendActions(false);
   }
 
+  function openCommentsSheet(entryId: string): void {
+    setSelectedFeedEntryId(entryId);
+    drawerHeight.setValue(minDrawerHeight);
+    drawerHeightRef.current = minDrawerHeight;
+  }
+
+  function closeCommentsSheet(): void {
+    setSelectedFeedEntryId(null);
+  }
+
+  async function handleSubmitComment(entryId: string): Promise<void> {
+    await onAddFeedComment(entryId);
+    requestAnimationFrame(() => {
+      commentInputRef.current?.focus?.();
+    });
+  }
+
+  function clampHeight(value: number): number {
+    return Math.max(minDrawerHeight, Math.min(maxDrawerHeight, value));
+  }
+
+  function animateDrawerTo(target: number): void {
+    Animated.spring(drawerHeight, {
+      toValue: target,
+      useNativeDriver: false,
+      bounciness: 0,
+      speed: 20,
+    }).start(() => {
+      drawerHeightRef.current = target;
+    });
+  }
+
+  const drawerHandlePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 3,
+      onPanResponderGrant: () => {
+        panStartHeightRef.current = drawerHeightRef.current;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const next = clampHeight(panStartHeightRef.current - gestureState.dy);
+        drawerHeight.setValue(next);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const next = clampHeight(panStartHeightRef.current - gestureState.dy);
+        drawerHeightRef.current = next;
+
+        if (gestureState.dy > 140 && next <= minDrawerHeight + 8) {
+          closeCommentsSheet();
+          return;
+        }
+
+        if (gestureState.vy < -0.5) {
+          animateDrawerTo(maxDrawerHeight);
+          return;
+        }
+
+        if (gestureState.vy > 0.5) {
+          animateDrawerTo(minDrawerHeight);
+          return;
+        }
+
+        const midpoint = minDrawerHeight + (maxDrawerHeight - minDrawerHeight) / 2;
+        animateDrawerTo(next >= midpoint ? maxDrawerHeight : minDrawerHeight);
+      },
+    }),
+  ).current;
+
   return (
-    <ScrollView contentContainerStyle={[styles.screen, styles.socialWrap]}>
-      <View style={styles.socialHeader}>
+    <>
+      <ScrollView contentContainerStyle={[styles.screen, styles.socialWrap]}>
+        <View style={styles.socialHeader}>
         <Text style={styles.title}>Social</Text>
         <View style={styles.segmentRow}>
           <TouchableOpacity
@@ -136,16 +185,8 @@ export function FriendsScreen(props: Props) {
           >
             <Text style={styles.segmentText}>Friends</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.segmentButton, socialSection === 'chat' && styles.segmentButtonActive]}
-            onPress={() => setSocialSection('chat')}
-          >
-            <Text style={styles.segmentText}>Chat</Text>
-          </TouchableOpacity>
         </View>
       </View>
-
-      {socialSection === 'chat' && <ChatScreen {...chatProps} profilesById={profilesById} />}
 
       {socialSection === 'feed' && (
         <>
@@ -160,18 +201,45 @@ export function FriendsScreen(props: Props) {
           {!!feedError && <Text style={styles.error}>{feedError}</Text>}
           {sortedFeed.map((item) => (
             <View key={item.entryId} style={styles.card}>
-              <View style={styles.inlineRow}>
-                <ProfileAvatar
-                  size={34}
-                  avatarUrl={profilesById[item.subjectId]?.avatarUrl ?? null}
-                  avatarTint={profilesById[item.subjectId]?.avatarTint ?? '#5b6c8a'}
-                />
-                <Text style={[styles.cardTitle, styles.inlineLeft]}>
-                  {item.displayName} (@{item.username})
-                </Text>
+              <View style={styles.feedHeaderRow}>
+                <View style={styles.feedIdentityWrap}>
+                  <ProfileAvatar
+                    size={34}
+                    avatarUrl={profilesById[item.subjectId]?.avatarUrl ?? null}
+                    avatarTint={profilesById[item.subjectId]?.avatarTint ?? '#5b6c8a'}
+                  />
+                  <View style={styles.inlineLeft}>
+                    <Text style={styles.cardTitle}>{item.displayName}</Text>
+                    <Text style={styles.feedMetaTime}>{formatEntryTimestamp(item.occurredAt)}</Text>
+                  </View>
+                </View>
+                <View style={styles.feedStatsColumn}>
+                  <Text style={styles.feedMetaInline}>
+                    {getRatingEmoji(item.rating)} {getRatingEmotion(item.rating)}
+                  </Text>
+                  <BristolTypeChip typeValue={item.bristolType} />
+                </View>
               </View>
-              <Text style={styles.muted}>{new Date(item.occurredAt).toLocaleString()}</Text>
-              <Text style={styles.cardBody}>Rating: {item.rating}</Text>
+              <View style={styles.feedActionsRow}>
+                <TouchableOpacity
+                  style={[styles.feedActionButton, styles.iconButtonGhost]}
+                  onPress={() => openCommentsSheet(item.entryId)}
+                >
+                  <Ionicons name="chatbubble-ellipses-outline" size={14} color="#c9d1d9" />
+                  <Text style={styles.feedActionText}>Add comment</Text>
+                </TouchableOpacity>
+                {(feedCommentsByEntry[item.entryId] ?? []).length > 0 ? (
+                  <TouchableOpacity
+                    style={[styles.feedActionButton, styles.iconButtonGhost]}
+                    onPress={() => openCommentsSheet(item.entryId)}
+                  >
+                    <Ionicons name="chatbubbles-outline" size={14} color="#c9d1d9" />
+                    <Text style={styles.feedActionText}>
+                      Comments ({(feedCommentsByEntry[item.entryId] ?? []).length})
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
           ))}
           {sortedFeed.length === 0 && <Text style={styles.muted}>No feed events yet.</Text>}
@@ -225,19 +293,6 @@ export function FriendsScreen(props: Props) {
                 <Text style={[styles.cardTitle, styles.inlineLeft]}>
                   {friend.displayName} (@{friend.username})
                 </Text>
-                <TouchableOpacity
-                  style={[
-                    styles.iconButton,
-                    styles.iconButtonSecondary,
-                    styles.inlineAction,
-                    openDirectChatLoading && styles.buttonDisabled,
-                  ]}
-                  onPress={() => onOpenDirectChat(friend.id)}
-                  disabled={openDirectChatLoading}
-                  accessibilityLabel={`Open chat with ${friend.displayName}`}
-                >
-                  {openDirectChatLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />}
-                </TouchableOpacity>
               </View>
             </View>
           ))}
@@ -318,7 +373,98 @@ export function FriendsScreen(props: Props) {
             )}
           </Pressable>
         </Pressable>
+        </Modal>
+      </ScrollView>
+
+      <Modal
+        transparent
+        visible={Boolean(selectedFeedEntryId)}
+        animationType="slide"
+        onRequestClose={closeCommentsSheet}
+      >
+        <View style={styles.commentsDrawerOverlay}>
+          <Pressable style={styles.commentsDrawerBackdrop} onPress={closeCommentsSheet} />
+          <View style={styles.commentsDrawerWrap}>
+            <Animated.View style={[styles.commentsDrawerSheet, { height: drawerHeight }]}>
+              <View style={styles.commentsDrawerHandleWrap} {...drawerHandlePanResponder.panHandlers}>
+                <View style={styles.commentsDrawerHandle} />
+              </View>
+              {selectedFeedItem ? (
+                <View style={styles.commentsSheetHeader}>
+                  <View style={styles.feedHeaderRow}>
+                    <View style={styles.feedIdentityWrap}>
+                      <ProfileAvatar
+                        size={32}
+                        avatarUrl={profilesById[selectedFeedItem.subjectId]?.avatarUrl ?? null}
+                        avatarTint={profilesById[selectedFeedItem.subjectId]?.avatarTint ?? '#5b6c8a'}
+                      />
+                      <View style={styles.inlineLeft}>
+                        <Text style={styles.cardTitle}>{selectedFeedItem.displayName}</Text>
+                        <Text style={styles.feedMetaTime}>{formatEntryTimestamp(selectedFeedItem.occurredAt)}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.feedStatsColumn}>
+                      <Text style={styles.feedMetaInline}>
+                        {getRatingEmoji(selectedFeedItem.rating)} {getRatingEmotion(selectedFeedItem.rating)}
+                      </Text>
+                      <BristolTypeChip typeValue={selectedFeedItem.bristolType} />
+                    </View>
+                  </View>
+                  <Text style={styles.commentsSheetSubtitle}>
+                    {selectedComments.length} comment{selectedComments.length === 1 ? '' : 's'}
+                  </Text>
+                </View>
+              ) : null}
+              <FlatList<FeedComment>
+                style={styles.commentsSheetList}
+                contentContainerStyle={styles.commentsSheetScrollContent}
+                data={selectedComments}
+                keyExtractor={(comment: FeedComment) => comment.id}
+                renderItem={({ item: comment }: { item: FeedComment }) => (
+                  <View style={styles.feedCommentRow}>
+                    <ProfileAvatar size={22} avatarUrl={comment.avatarUrl} avatarTint={comment.avatarTint} />
+                    <View style={styles.feedCommentBodyWrap}>
+                      <Text style={styles.feedCommentAuthor}>{comment.displayName}</Text>
+                      <Text style={styles.feedCommentText}>{comment.body}</Text>
+                      <Text style={styles.feedCommentTime}>{formatEntryTimestamp(comment.createdAt)}</Text>
+                    </View>
+                  </View>
+                )}
+                ListEmptyComponent={<Text style={styles.muted}>No comments yet.</Text>}
+                ItemSeparatorComponent={() => <View style={styles.commentsSheetItemGap} />}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+              />
+              {selectedFeedEntryId ? (
+                <View style={[styles.commentsSheetComposerRow, { marginBottom: keyboardOffset }]}>
+                  <TextInput
+                    ref={commentInputRef}
+                    style={[styles.input, styles.feedCommentInput]}
+                    value={feedCommentDraftByEntry[selectedFeedEntryId] ?? ''}
+                    onChangeText={(value) => onFeedCommentDraftChange(selectedFeedEntryId, value)}
+                    placeholder="Write a comment"
+                    placeholderTextColor="#8b949e"
+                    blurOnSubmit={false}
+                  />
+                  <TouchableOpacity
+                    style={[styles.iconButton, styles.iconButtonSecondary, styles.inlineAction, feedCommentSubmittingEntryId === selectedFeedEntryId && styles.buttonDisabled]}
+                    onPress={() => void handleSubmitComment(selectedFeedEntryId)}
+                    disabled={feedCommentSubmittingEntryId === selectedFeedEntryId}
+                    accessibilityLabel="Send comment"
+                  >
+                    {feedCommentSubmittingEntryId === selectedFeedEntryId ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Ionicons name="send" size={15} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </Animated.View>
+          </View>
+        </View>
       </Modal>
-    </ScrollView>
+    </>
   );
 }

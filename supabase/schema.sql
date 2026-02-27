@@ -45,6 +45,14 @@ create table if not exists public.poop_entries (
   check (note is null or char_length(note) <= 280)
 );
 
+create table if not exists public.friend_feed_comments (
+  id uuid primary key default gen_random_uuid(),
+  entry_id uuid not null references public.poop_entries(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 280),
+  created_at timestamptz not null default now()
+);
+
 create type public.friendship_status as enum ('pending', 'accepted', 'blocked');
 
 do $$
@@ -168,6 +176,9 @@ create index if not exists friendships_addressee_status_idx
 
 create index if not exists poop_entries_visibility_idx
   on public.poop_entries(visibility);
+
+create index if not exists friend_feed_comments_entry_created_idx
+  on public.friend_feed_comments(entry_id, created_at desc);
 
 create index if not exists chat_room_invites_room_status_idx
   on public.chat_room_invites(room_id, status, created_at desc);
@@ -330,6 +341,7 @@ alter table public.chat_rooms enable row level security;
 alter table public.chat_room_members enable row level security;
 alter table public.chat_messages enable row level security;
 alter table public.chat_room_invites enable row level security;
+alter table public.friend_feed_comments enable row level security;
 
 insert into storage.buckets (id, name, public)
 select 'avatars', 'avatars', true
@@ -446,6 +458,58 @@ create policy poop_entries_delete_own
   for delete
   to authenticated
   using (auth.uid() = user_id);
+
+-- Feed comments: visible/commentable when the underlying entry is visible in friend feed.
+create policy friend_feed_comments_select_visible
+  on public.friend_feed_comments
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.poop_entries e
+      join public.profiles p on p.id = e.user_id
+      where e.id = public.friend_feed_comments.entry_id
+        and (
+          e.user_id = auth.uid()
+          or (
+            p.share_feed = true
+            and exists (
+              select 1
+              from public.accepted_friend_edges af
+              where af.user_id = auth.uid()
+                and af.friend_id = e.user_id
+            )
+          )
+        )
+    )
+  );
+
+create policy friend_feed_comments_insert_visible
+  on public.friend_feed_comments
+  for insert
+  to authenticated
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1
+      from public.poop_entries e
+      join public.profiles p on p.id = e.user_id
+      where e.id = public.friend_feed_comments.entry_id
+        and (
+          e.user_id = auth.uid()
+          or (
+            p.share_feed = true
+            and exists (
+              select 1
+              from public.accepted_friend_edges af
+              where af.user_id = auth.uid()
+                and af.friend_id = e.user_id
+            )
+          )
+        )
+    )
+  );
 
 -- Friendships: only involved users can read; requester creates; either side can update status.
 create policy friendships_select_participants

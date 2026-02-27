@@ -4,6 +4,7 @@ import type {
   ChatRoom,
   ChatRoomInvite,
   FeedItem,
+  FeedComment,
   IncomingFriendRequest,
   LeaderboardRow,
   PoopEntry,
@@ -68,13 +69,46 @@ type RoomMemberRow = {
 };
 
 type FeedRow = {
-  entry_id: string;
-  subject_id: string;
-  username: string;
-  display_name: string;
+  id: string;
+  user_id: string;
+  profiles:
+    | {
+        username: string;
+        display_name: string;
+      }
+    | Array<{
+        username: string;
+        display_name: string;
+      }>
+    | null;
   occurred_at: string;
+  bristol_type: number;
   rating: number;
   created_at: string;
+};
+
+type FeedCommentRow = {
+  id: string;
+  entry_id: string;
+  user_id: string;
+  body: string;
+  created_at: string;
+  profiles:
+    | {
+        id: string;
+        username: string;
+        display_name: string;
+        avatar_url: string | null;
+        avatar_tint: string | null;
+      }
+    | Array<{
+        id: string;
+        username: string;
+        display_name: string;
+        avatar_url: string | null;
+        avatar_tint: string | null;
+      }>
+    | null;
 };
 
 type ChatRoomRow = {
@@ -142,13 +176,30 @@ function asLeaderboardRow(row: LeaderboardRowDb): LeaderboardRow {
 }
 
 function asFeedItem(row: FeedRow): FeedItem {
+  const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
   return {
-    entryId: row.entry_id,
-    subjectId: row.subject_id,
-    username: row.username,
-    displayName: row.display_name,
+    entryId: row.id,
+    subjectId: row.user_id,
+    username: profile?.username ?? 'unknown',
+    displayName: profile?.display_name ?? 'Unknown user',
     occurredAt: row.occurred_at,
+    bristolType: row.bristol_type as FeedItem['bristolType'],
     rating: row.rating as FeedItem['rating'],
+    createdAt: row.created_at,
+  };
+}
+
+function asFeedComment(row: FeedCommentRow): FeedComment {
+  const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+  return {
+    id: row.id,
+    entryId: row.entry_id,
+    userId: row.user_id,
+    username: profile?.username ?? 'unknown',
+    displayName: profile?.display_name ?? 'Unknown',
+    avatarUrl: profile?.avatar_url ?? null,
+    avatarTint: profile?.avatar_tint ?? '#5b6c8a',
+    body: row.body,
     createdAt: row.created_at,
   };
 }
@@ -484,12 +535,52 @@ export function createSupabaseFeedService(client: SupabaseClient): FeedService {
   return {
     async listMineAndFriends(limit = 100): Promise<FeedItem[]> {
       const { data, error } = await client
-        .from('friend_feed_events')
-        .select('entry_id,subject_id,username,display_name,occurred_at,rating,created_at')
+        .from('poop_entries')
+        .select('id,user_id,occurred_at,bristol_type,rating,created_at,profiles:user_id(username,display_name)')
         .order('occurred_at', { ascending: false })
         .limit(limit);
       if (error) throw error;
       return (data ?? []).map((row) => asFeedItem(row as FeedRow));
+    },
+
+    async listCommentsByEntryIds(entryIds: UUID[], limitPerEntry = 20): Promise<Record<UUID, FeedComment[]>> {
+      const uniqueIds = Array.from(new Set(entryIds.filter((id) => Boolean(id?.trim?.()))));
+      if (uniqueIds.length === 0) return {};
+      const maxRows = Math.max(1, Math.min(500, limitPerEntry * uniqueIds.length));
+      const { data, error } = await client
+        .from('friend_feed_comments')
+        .select('id,entry_id,user_id,body,created_at,profiles:user_id(id,username,display_name,avatar_url,avatar_tint)')
+        .in('entry_id', uniqueIds)
+        .order('created_at', { ascending: false })
+        .limit(maxRows);
+      if (error) throw error;
+
+      const grouped: Record<UUID, FeedComment[]> = {};
+      for (const row of (data ?? []) as FeedCommentRow[]) {
+        const comment = asFeedComment(row);
+        grouped[comment.entryId] = grouped[comment.entryId] ?? [];
+        if (grouped[comment.entryId].length < limitPerEntry) {
+          grouped[comment.entryId].push(comment);
+        }
+      }
+      return grouped;
+    },
+
+    async addComment(entryId: UUID, body: string): Promise<FeedComment> {
+      const userId = await requireUserId(client);
+      const trimmed = body.trim();
+      if (!trimmed) throw new Error('Comment cannot be empty.');
+      const { data, error } = await client
+        .from('friend_feed_comments')
+        .insert({
+          entry_id: entryId,
+          user_id: userId,
+          body: trimmed,
+        })
+        .select('id,entry_id,user_id,body,created_at,profiles:user_id(id,username,display_name,avatar_url,avatar_tint)')
+        .single();
+      if (error) throw error;
+      return asFeedComment(data as FeedCommentRow);
     },
   };
 }

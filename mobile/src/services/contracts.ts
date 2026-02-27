@@ -3,6 +3,7 @@ import type {
   ChatRoom,
   ChatRoomInvite,
   FeedItem,
+  FeedComment,
   IncomingFriendRequest,
   LeaderboardRow,
   PoopEntry,
@@ -53,6 +54,8 @@ export interface LeaderboardService {
 
 export interface FeedService {
   listMineAndFriends(limit?: number): Promise<FeedItem[]>;
+  listCommentsByEntryIds(entryIds: UUID[], limitPerEntry?: number): Promise<Record<UUID, FeedComment[]>>;
+  addComment(entryId: UUID, body: string): Promise<FeedComment>;
 }
 
 export interface ChatService {

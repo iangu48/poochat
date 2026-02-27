@@ -42,7 +42,20 @@ export type FeedItem = {
   username: string;
   displayName: string;
   occurredAt: string;
+  bristolType: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   rating: 1 | 2 | 3 | 4 | 5;
+  createdAt: string;
+};
+
+export type FeedComment = {
+  id: UUID;
+  entryId: UUID;
+  userId: UUID;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  avatarTint: string;
+  body: string;
   createdAt: string;
 };
 

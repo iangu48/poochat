@@ -15,6 +15,7 @@ import type {
   ChatRoom,
   ChatRoomInvite,
   FeedItem,
+  FeedComment,
   IncomingFriendRequest,
   LeaderboardRow,
   PoopEntry,
@@ -24,7 +25,7 @@ import type { Tab } from '../screens/TabBar';
 import type { ChatRoute } from '../screens/ChatScreen';
 
 type AuthMethod = 'phone' | 'email';
-export type SocialSection = 'feed' | 'friends' | 'chat';
+export type SocialSection = 'feed' | 'friends';
 
 export function useAppController() {
   const [session, setSession] = useState<Session | null>(null);
@@ -77,6 +78,9 @@ export function useAppController() {
   const [deletingEntryIds, setDeletingEntryIds] = useState<string[]>([]);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
+  const [feedCommentsByEntry, setFeedCommentsByEntry] = useState<Record<string, FeedComment[]>>({});
+  const [feedCommentDraftByEntry, setFeedCommentDraftByEntry] = useState<Record<string, string>>({});
+  const [feedCommentSubmittingEntryId, setFeedCommentSubmittingEntryId] = useState('');
   const [feedError, setFeedError] = useState('');
 
   const [friendUsername, setFriendUsername] = useState('');
@@ -168,6 +172,9 @@ export function useAppController() {
       setMyProfile(null);
       setEntries([]);
       setFeedItems([]);
+      setFeedCommentsByEntry({});
+      setFeedCommentDraftByEntry({});
+      setFeedCommentSubmittingEntryId('');
       setFriends([]);
       setIncomingRequests([]);
       setActiveRoomId('');
@@ -290,11 +297,38 @@ export function useAppController() {
     try {
       const items = await feedService.listMineAndFriends(60);
       setFeedItems(items);
+      const comments = await feedService.listCommentsByEntryIds(items.map((item) => item.entryId), 20);
+      setFeedCommentsByEntry(comments);
       void hydrateProfilesByIds(items.map((item) => item.subjectId));
     } catch (error) {
       setFeedError(error instanceof Error ? error.message : 'Failed to load feed.');
     } finally {
       setFeedLoading(false);
+    }
+  }
+
+  function setFeedCommentDraft(entryId: string, value: string): void {
+    setFeedCommentDraftByEntry((prev) => ({ ...prev, [entryId]: value }));
+  }
+
+  async function handleAddFeedComment(entryId: string): Promise<void> {
+    if (!entryId || feedCommentSubmittingEntryId === entryId) return;
+    const draft = (feedCommentDraftByEntry[entryId] ?? '').trim();
+    if (!draft) return;
+    setFeedCommentSubmittingEntryId(entryId);
+    setFeedError('');
+    try {
+      const created = await feedService.addComment(entryId, draft);
+      setFeedCommentDraftByEntry((prev) => ({ ...prev, [entryId]: '' }));
+      setFeedCommentsByEntry((prev) => ({
+        ...prev,
+        [entryId]: [created, ...(prev[entryId] ?? [])].slice(0, 20),
+      }));
+      void hydrateProfilesByIds([created.userId]);
+    } catch (error) {
+      setFeedError(error instanceof Error ? error.message : 'Failed to add comment.');
+    } finally {
+      setFeedCommentSubmittingEntryId('');
     }
   }
 
@@ -768,7 +802,7 @@ export function useAppController() {
       const roomId = await chatService.createOrGetDirectRoom(friendUserId);
       setActiveRoomId(roomId);
       setChatRoute('room');
-      setSocialSection('chat');
+      setSocialSection('friends');
       setTab('social');
       const rooms = await refreshRooms();
       await Promise.all([loadMessages(roomId), refreshPendingInvites(roomId), refreshActiveRoomRole(roomId)]);
@@ -1164,9 +1198,14 @@ export function useAppController() {
     showEntryComposer,
     editingEntryId,
     feedItems,
+    feedCommentsByEntry,
+    feedCommentDraftByEntry,
+    feedCommentSubmittingEntryId,
     feedError,
     refreshEntries,
     refreshFeed,
+    setFeedCommentDraft,
+    handleAddFeedComment,
     handleDeleteEntry,
     handleAddEntry,
     openAddEntryComposer,
