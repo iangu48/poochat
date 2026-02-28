@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, LayoutChangeEvent, ScrollView, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Dimensions, LayoutChangeEvent, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import type { PoopEntry } from '../types/domain';
@@ -76,6 +76,7 @@ export function HomeScreen(props: Props) {
   );
 
   const [entryMenuId, setEntryMenuId] = useState<string | null>(null);
+  const [pullDistance, setPullDistance] = useState(0);
   const [entryMenuAnchor, setEntryMenuAnchor] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [showDateEditor, setShowDateEditor] = useState(false);
   const [pickerStep, setPickerStep] = useState<'none' | 'date' | 'time'>('none');
@@ -145,7 +146,39 @@ export function HomeScreen(props: Props) {
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.screen} onScrollBeginDrag={() => setEntryMenuId(null)}>
+      <ScrollView
+        contentContainerStyle={styles.screen}
+        onScrollBeginDrag={() => setEntryMenuId(null)}
+        onScroll={(event) => {
+          const y = event.nativeEvent.contentOffset.y;
+          setPullDistance(Math.max(0, Math.min(72, -y)));
+        }}
+        onScrollEndDrag={() => {
+          if (!loadingEntries) setPullDistance(0);
+        }}
+        onMomentumScrollEnd={() => {
+          if (!loadingEntries) setPullDistance(0);
+        }}
+        scrollEventThrottle={16}
+        alwaysBounceVertical
+        contentInsetAdjustmentBehavior="never"
+        refreshControl={
+          <RefreshControl
+            refreshing={loadingEntries}
+            onRefresh={onRefreshEntries}
+            tintColor="#f0f6fc"
+            progressViewOffset={0}
+          />
+        }
+      >
+        {loadingEntries || pullDistance > 0 ? (
+          <View style={[styles.refreshGapIndicator, { height: loadingEntries ? 48 : pullDistance }]}>
+            {!loadingEntries ? (
+              <Text style={[styles.refreshHint, { opacity: Math.min(1, pullDistance / 42) }]}>Pull to refresh</Text>
+            ) : null}
+            {loadingEntries ? <ActivityIndicator size="small" color="#f0f6fc" /> : null}
+          </View>
+        ) : null}
         <MonthOverviewSection
           monthEntriesCount={monthSummary.monthEntries.length}
           averageMonthRating={monthSummary.averageMonthRating}
@@ -163,7 +196,6 @@ export function HomeScreen(props: Props) {
           loadingEntries={loadingEntries}
           entryError={entryError}
           deletingEntryIds={deletingEntryIds}
-          onRefreshEntries={onRefreshEntries}
           onOpenEntryMenu={(event, entryId) => {
             setEntryMenuAnchor({
               x: event.nativeEvent.pageX,

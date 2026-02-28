@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Dimensions, FlatList, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, FlatList, Keyboard, Modal, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { styles } from './styles';
@@ -67,7 +67,9 @@ export function FriendsScreen(props: Props) {
   const [showIncomingRequests, setShowIncomingRequests] = useState(false);
   const [selectedFeedEntryId, setSelectedFeedEntryId] = useState<string | null>(null);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
+  const [pullDistance, setPullDistance] = useState(0);
   const hasFriendDropdown = showFriendActions || showIncomingRequests;
+  const screenRefreshing = socialSection === 'feed' ? feedLoading : friendsLoading;
 
   const commentInputRef = useRef<any>(null);
   const screenHeight = Dimensions.get('window').height;
@@ -169,7 +171,38 @@ export function FriendsScreen(props: Props) {
 
   return (
     <>
-      <ScrollView contentContainerStyle={[styles.screen, styles.socialWrap]}>
+      <ScrollView
+        contentContainerStyle={[styles.screen, styles.socialWrap]}
+        onScroll={(event) => {
+          const y = event.nativeEvent.contentOffset.y;
+          setPullDistance(Math.max(0, Math.min(72, -y)));
+        }}
+        onScrollEndDrag={() => {
+          if (!screenRefreshing) setPullDistance(0);
+        }}
+        onMomentumScrollEnd={() => {
+          if (!screenRefreshing) setPullDistance(0);
+        }}
+        scrollEventThrottle={16}
+        alwaysBounceVertical
+        contentInsetAdjustmentBehavior="never"
+        refreshControl={
+          <RefreshControl
+            refreshing={screenRefreshing}
+            onRefresh={socialSection === 'feed' ? onRefreshFeed : onRefreshFriends}
+            tintColor="#f0f6fc"
+            progressViewOffset={0}
+          />
+        }
+      >
+        {screenRefreshing || pullDistance > 0 ? (
+          <View style={[styles.refreshGapIndicator, { height: screenRefreshing ? 48 : pullDistance }]}>
+            {!screenRefreshing ? (
+              <Text style={[styles.refreshHint, { opacity: Math.min(1, pullDistance / 42) }]}>Pull to refresh</Text>
+            ) : null}
+            {screenRefreshing ? <ActivityIndicator size="small" color="#f0f6fc" /> : null}
+          </View>
+        ) : null}
         <View style={styles.socialHeader}>
         <Text style={styles.title}>Social</Text>
         <View style={styles.segmentRow}>
@@ -190,14 +223,6 @@ export function FriendsScreen(props: Props) {
 
       {socialSection === 'feed' && (
         <>
-          <TouchableOpacity
-            style={[styles.iconButton, styles.iconButtonGhost, feedLoading && styles.buttonDisabled]}
-            onPress={onRefreshFeed}
-            accessibilityLabel="Refresh feed"
-            disabled={feedLoading}
-          >
-            {feedLoading ? <ActivityIndicator size="small" color="#f0f6fc" /> : <Ionicons name="refresh" size={18} color="#f0f6fc" />}
-          </TouchableOpacity>
           {!!feedError && <Text style={styles.error}>{feedError}</Text>}
           {sortedFeed.map((item) => (
             <View key={item.entryId} style={styles.card}>
@@ -272,14 +297,6 @@ export function FriendsScreen(props: Props) {
               {friendsLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="mail" size={18} color="#fff" />}
             </TouchableOpacity>
             {incomingRequests.length > 0 ? <Text style={styles.chatBadge}>{incomingRequests.length}</Text> : null}
-            <TouchableOpacity
-              style={[styles.iconButton, styles.iconButtonGhost, friendsLoading && styles.buttonDisabled]}
-              onPress={onRefreshFriends}
-              accessibilityLabel="Refresh friends"
-              disabled={friendsLoading}
-            >
-              {friendsLoading ? <ActivityIndicator size="small" color="#f0f6fc" /> : <Ionicons name="refresh" size={18} color="#f0f6fc" />}
-            </TouchableOpacity>
           </View>
 
           {!!friendStatus && <Text style={styles.muted}>{friendStatus}</Text>}

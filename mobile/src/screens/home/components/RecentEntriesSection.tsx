@@ -10,25 +10,16 @@ type Props = {
   loadingEntries: boolean;
   entryError: string;
   deletingEntryIds: string[];
-  onRefreshEntries: () => void;
   onOpenEntryMenu: (event: GestureResponderEvent, entryId: string) => void;
 };
 
 export function RecentEntriesSection(props: Props) {
-  const { entries, loadingEntries, entryError, deletingEntryIds, onRefreshEntries, onOpenEntryMenu } = props;
+  const { entries, loadingEntries, entryError, deletingEntryIds, onOpenEntryMenu } = props;
 
   return (
     <>
       <View style={styles.homeSectionHeader}>
         <Text style={styles.title}>Recent Entries</Text>
-        <TouchableOpacity
-          style={[styles.iconButton, styles.iconButtonGhost, loadingEntries && styles.buttonDisabled]}
-          onPress={onRefreshEntries}
-          accessibilityLabel="Refresh entries"
-          disabled={loadingEntries}
-        >
-          {loadingEntries ? <ActivityIndicator size="small" color="#f0f6fc" /> : <Ionicons name="refresh" size={18} color="#f0f6fc" />}
-        </TouchableOpacity>
       </View>
       {loadingEntries && <Text style={styles.muted}>Loading...</Text>}
       {!!entryError && <Text style={styles.error}>{entryError}</Text>}

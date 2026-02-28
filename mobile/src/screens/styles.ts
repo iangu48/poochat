@@ -8,6 +8,17 @@ export const styles = StyleSheet.create({
   screen: {
     padding: 16,
   },
+  refreshGapIndicator: {
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  refreshHint: {
+    color: '#8b949e',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   title: {
     color: '#f0f6fc',
     fontSize: 24,

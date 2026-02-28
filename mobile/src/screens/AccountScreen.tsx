@@ -1,4 +1,5 @@
-import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import type { LeaderboardRow, Profile } from '../types/domain';
@@ -49,8 +50,40 @@ export function AccountScreen({
   signingOut,
   onSignOut,
 }: Props) {
+  const [pullDistance, setPullDistance] = useState(0);
   return (
-    <View style={styles.screen}>
+    <ScrollView
+      contentContainerStyle={styles.screen}
+      onScroll={(event) => {
+        const y = event.nativeEvent.contentOffset.y;
+        setPullDistance(Math.max(0, Math.min(72, -y)));
+      }}
+      onScrollEndDrag={() => {
+        if (!leaderboardLoading) setPullDistance(0);
+      }}
+      onMomentumScrollEnd={() => {
+        if (!leaderboardLoading) setPullDistance(0);
+      }}
+      scrollEventThrottle={16}
+      alwaysBounceVertical
+      contentInsetAdjustmentBehavior="never"
+      refreshControl={
+        <RefreshControl
+          refreshing={leaderboardLoading}
+          onRefresh={onRefreshLeaderboard}
+          tintColor="#f0f6fc"
+          progressViewOffset={0}
+        />
+      }
+    >
+      {leaderboardLoading || pullDistance > 0 ? (
+        <View style={[styles.refreshGapIndicator, { height: leaderboardLoading ? 48 : pullDistance }]}>
+          {!leaderboardLoading ? (
+            <Text style={[styles.refreshHint, { opacity: Math.min(1, pullDistance / 42) }]}>Pull to refresh</Text>
+          ) : null}
+          {leaderboardLoading ? <ActivityIndicator size="small" color="#f0f6fc" /> : null}
+        </View>
+      ) : null}
       <Text style={styles.title}>Account</Text>
       <Text style={styles.muted}>{email ?? 'No email on file'}</Text>
       <View style={styles.profileHeader}>
@@ -126,14 +159,6 @@ export function AccountScreen({
         >
           <Text style={styles.buttonText}>{previousYear}</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.iconButton, styles.iconButtonGhost, leaderboardLoading && styles.buttonDisabled]}
-          onPress={onRefreshLeaderboard}
-          accessibilityLabel="Refresh leaderboard"
-          disabled={leaderboardLoading}
-        >
-          {leaderboardLoading ? <ActivityIndicator size="small" color="#f0f6fc" /> : <Ionicons name="refresh" size={18} color="#f0f6fc" />}
-        </TouchableOpacity>
       </View>
 
       {leaderboardLoading && <Text style={styles.muted}>Loading leaderboard...</Text>}
@@ -163,6 +188,6 @@ export function AccountScreen({
           <Text style={styles.buttonText}>{signingOut ? 'Signing Out...' : 'Sign Out'}</Text>
         </View>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
