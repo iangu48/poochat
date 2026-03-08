@@ -75,6 +75,7 @@ export function useAppController() {
   const [entryTime, setEntryTime] = useState(formatTimeInput(new Date()));
   const [showEntryComposer, setShowEntryComposer] = useState(false);
   const [addEntryLoading, setAddEntryLoading] = useState(false);
+  const [updatingEntryLocationIds, setUpdatingEntryLocationIds] = useState<string[]>([]);
   const [deletingEntryIds, setDeletingEntryIds] = useState<string[]>([]);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
@@ -696,11 +697,15 @@ export function useAppController() {
           note: note.trim() || undefined,
         });
       } else {
+        const currentLocation = await getCurrentCoordinates();
         await poopService.createMine({
           occurredAt: occurredAtIso,
           bristolType: typeValue as 1 | 2 | 3 | 4 | 5 | 6 | 7,
           rating: ratingValue as 1 | 2 | 3 | 4 | 5,
           note: note.trim() || undefined,
+          latitude: currentLocation?.latitude,
+          longitude: currentLocation?.longitude,
+          locationSource: currentLocation ? 'gps' : undefined,
         });
       }
       setNote('');
@@ -753,6 +758,25 @@ export function useAppController() {
       setEntryError(error instanceof Error ? error.message : 'Failed to delete entry.');
     } finally {
       setDeletingEntryIds((prev) => prev.filter((id) => id !== entryId));
+    }
+  }
+
+  async function handleUpdateEntryLocation(entryId: string, latitude: number, longitude: number): Promise<void> {
+    if (!entryId.trim()) return;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    setUpdatingEntryLocationIds((prev) => (prev.includes(entryId) ? prev : [...prev, entryId]));
+    setEntryError('');
+    try {
+      const updated = await poopService.updateMine(entryId, {
+        latitude,
+        longitude,
+        locationSource: 'manual',
+      });
+      setEntries((prev) => prev.map((entry) => (entry.id === updated.id ? updated : entry)));
+    } catch (error) {
+      setEntryError(error instanceof Error ? error.message : 'Failed to update entry location.');
+    } finally {
+      setUpdatingEntryLocationIds((prev) => prev.filter((id) => id !== entryId));
     }
   }
 
@@ -1183,6 +1207,7 @@ export function useAppController() {
     loadingEntries,
     feedLoading,
     addEntryLoading,
+    updatingEntryLocationIds,
     deletingEntryIds,
     entryError,
     bristolType,
@@ -1207,6 +1232,7 @@ export function useAppController() {
     setFeedCommentDraft,
     handleAddFeedComment,
     handleDeleteEntry,
+    handleUpdateEntryLocation,
     handleAddEntry,
     openAddEntryComposer,
     closeEntryComposer,
@@ -1317,6 +1343,23 @@ function combineDateTimeInputs(dateInput: string, timeInput: string): string {
   const combined = new Date(`${date}T${time}:00`);
   if (Number.isNaN(combined.getTime())) throw new Error('Invalid date/time.');
   return combined.toISOString();
+}
+
+async function getCurrentCoordinates(): Promise<{ latitude: number; longitude: number } | null> {
+  try {
+    const Location = require('expo-location');
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.status !== 'granted') return null;
+    const position = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    const latitude = Number(position?.coords?.latitude);
+    const longitude = Number(position?.coords?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    return { latitude, longitude };
+  } catch {
+    return null;
+  }
 }
 
 function asRealtimeMessage(

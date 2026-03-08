@@ -38,6 +38,9 @@ type PoopRow = {
   bristol_type: number;
   rating: number;
   note: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  location_source: 'gps' | 'manual' | null;
 };
 
 type MessageRow = {
@@ -150,6 +153,9 @@ function asPoopEntry(row: PoopRow): PoopEntry {
     bristolType: row.bristol_type as PoopEntry['bristolType'],
     rating: row.rating as PoopEntry['rating'],
     note: row.note,
+    latitude: row.latitude == null ? null : Number(row.latitude),
+    longitude: row.longitude == null ? null : Number(row.longitude),
+    locationSource: row.location_source ?? null,
   };
 }
 
@@ -472,7 +478,7 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
       const userId = await requireUserId(client);
       const { data, error } = await client
         .from('poop_entries')
-        .select('id,user_id,occurred_at,bristol_type,rating,note')
+        .select('id,user_id,occurred_at,bristol_type,rating,note,latitude,longitude,location_source')
         .eq('user_id', userId)
         .order('occurred_at', { ascending: false })
         .limit(limit);
@@ -490,8 +496,11 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
           bristol_type: input.bristolType,
           rating: input.rating,
           note: input.note ?? null,
+          latitude: Number.isFinite(input.latitude) ? input.latitude : null,
+          longitude: Number.isFinite(input.longitude) ? input.longitude : null,
+          location_source: input.locationSource ?? null,
         })
-        .select('id,user_id,occurred_at,bristol_type,rating,note')
+        .select('id,user_id,occurred_at,bristol_type,rating,note,latitude,longitude,location_source')
         .single();
       if (error) throw error;
       return asPoopEntry(data as PoopRow);
@@ -499,7 +508,7 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
 
     async updateMine(
       entryId: UUID,
-      input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'note'>>
+      input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'note' | 'latitude' | 'longitude' | 'locationSource'>>
     ): Promise<PoopEntry> {
       const userId = await requireUserId(client);
       const updatePayload: Record<string, unknown> = {};
@@ -511,13 +520,22 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
       if (Object.prototype.hasOwnProperty.call(input, 'note')) {
         updatePayload.note = input.note?.trim() ? input.note.trim() : null;
       }
+      if (Object.prototype.hasOwnProperty.call(input, 'latitude')) {
+        updatePayload.latitude = Number.isFinite(input.latitude) ? input.latitude : null;
+      }
+      if (Object.prototype.hasOwnProperty.call(input, 'longitude')) {
+        updatePayload.longitude = Number.isFinite(input.longitude) ? input.longitude : null;
+      }
+      if (Object.prototype.hasOwnProperty.call(input, 'locationSource')) {
+        updatePayload.location_source = input.locationSource ?? null;
+      }
 
       const { data, error } = await client
         .from('poop_entries')
         .update(updatePayload)
         .eq('id', entryId)
         .eq('user_id', userId)
-        .select('id,user_id,occurred_at,bristol_type,rating,note')
+        .select('id,user_id,occurred_at,bristol_type,rating,note,latitude,longitude,location_source')
         .single();
       if (error) throw error;
       return asPoopEntry(data as PoopRow);

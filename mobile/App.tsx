@@ -1,6 +1,7 @@
-import { SafeAreaView } from 'react-native';
+import { SafeAreaView, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { FriendsScreen } from './src/screens/FriendsScreen';
@@ -82,6 +83,7 @@ export default function App() {
     entries: app.entries,
     loadingEntries: app.loadingEntries,
     addEntryLoading: app.addEntryLoading,
+    updatingEntryLocationIds: app.updatingEntryLocationIds,
     deletingEntryIds: app.deletingEntryIds,
     isEditingEntry: Boolean(app.editingEntryId),
     entryError: app.entryError,
@@ -93,6 +95,8 @@ export default function App() {
     entryTime: app.entryTime,
     onRefreshEntries: () => void app.refreshEntries(),
     onDeleteEntry: (entryId: string) => void app.handleDeleteEntry(entryId),
+    onUpdateEntryLocation: (entryId: string, latitude: number, longitude: number) =>
+      void app.handleUpdateEntryLocation(entryId, latitude, longitude),
     onEditEntry: app.handleStartEditEntry,
     onToggleComposer: app.openAddEntryComposer,
     onBristolTypeChange: app.setBristolType,
@@ -156,14 +160,17 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <SafeAreaView style={styles.root}>
-        <StatusBar style="auto" />
-        <TabBar tab={app.tab} onTabChange={app.setTab} />
-
-        {app.tab === 'home' && <HomeScreen {...homeProps} />}
-        {app.tab === 'social' && <FriendsScreen {...socialProps} />}
-        {app.tab === 'account' && <AccountScreen {...accountProps} />}
-      </SafeAreaView>
+      <BottomSheetModalProvider>
+        <View style={styles.root}>
+          <StatusBar style="auto" />
+          <View style={styles.contentWithTabIsland}>
+            {app.tab === 'home' && <HomeScreen {...homeProps} />}
+            {app.tab === 'social' && <FriendsScreen {...socialProps} />}
+            {app.tab === 'account' && <AccountScreen {...accountProps} />}
+          </View>
+          <TabBar tab={app.tab} onTabChange={app.setTab} />
+        </View>
+      </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
 }

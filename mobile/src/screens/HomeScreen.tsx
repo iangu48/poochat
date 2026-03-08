@@ -1,19 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, LayoutChangeEvent, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, LayoutChangeEvent, Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import type { PoopEntry } from '../types/domain';
 import { styles } from './styles';
 import { MonthOverviewSection } from './home/components/MonthOverviewSection';
 import { RecentEntriesSection } from './home/components/RecentEntriesSection';
+import { HomeMapSection } from './home/components/HomeMapSection';
 import { EntryComposerModal } from './home/components/EntryComposerModal';
 import { EntryActionsMenuModal } from './home/components/EntryActionsMenuModal';
-import { formatDateInput, formatTimeInput, getMonthSummary, getMonthlyTip } from './home/utils';
+import {
+  formatDateInput,
+  formatTimeInput,
+  getDateLabelFromKey,
+  getDaySummary,
+  getDailyTip,
+  getMonthSummary,
+  getMonthlyTip,
+} from './home/utils';
 
 type Props = {
   entries: PoopEntry[];
   loadingEntries: boolean;
   addEntryLoading: boolean;
+  updatingEntryLocationIds: string[];
   deletingEntryIds: string[];
   isEditingEntry: boolean;
   entryError: string;
@@ -25,6 +35,7 @@ type Props = {
   entryTime: string;
   onRefreshEntries: () => void;
   onDeleteEntry: (entryId: string) => void;
+  onUpdateEntryLocation: (entryId: string, latitude: number, longitude: number) => void;
   onEditEntry: (entry: PoopEntry) => void;
   onToggleComposer: () => void;
   onBristolTypeChange: (value: string) => void;
@@ -41,6 +52,7 @@ export function HomeScreen(props: Props) {
     entries,
     loadingEntries,
     addEntryLoading,
+    updatingEntryLocationIds,
     deletingEntryIds,
     isEditingEntry,
     entryError,
@@ -50,8 +62,8 @@ export function HomeScreen(props: Props) {
     note,
     entryDate,
     entryTime,
-    onRefreshEntries,
     onDeleteEntry,
+    onUpdateEntryLocation,
     onEditEntry,
     onToggleComposer,
     onBristolTypeChange,
@@ -74,9 +86,24 @@ export function HomeScreen(props: Props) {
     () => getMonthlyTip(monthSummary.averageMonthBristol, monthSummary.averageMonthRating, monthSummary.monthEntries.length),
     [monthSummary.averageMonthBristol, monthSummary.averageMonthRating, monthSummary.monthEntries.length],
   );
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+  const selectedDaySummary = useMemo(
+    () => (selectedDateKey ? getDaySummary(entries, selectedDateKey) : null),
+    [entries, selectedDateKey],
+  );
+  const selectedRecapTitle = useMemo(
+    () => (selectedDateKey ? getDateLabelFromKey(selectedDateKey) : 'Your Month'),
+    [selectedDateKey],
+  );
+  const recapTip = useMemo(
+    () => (selectedDaySummary
+      ? getDailyTip(selectedDaySummary.averageDayBristol, selectedDaySummary.averageDayRating, selectedDaySummary.dayEntries.length)
+      : monthlyTip),
+    [monthlyTip, selectedDaySummary],
+  );
 
   const [entryMenuId, setEntryMenuId] = useState<string | null>(null);
-  const [pullDistance, setPullDistance] = useState(0);
+  const [showDetails, setShowDetails] = useState(false);
   const [entryMenuAnchor, setEntryMenuAnchor] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [showDateEditor, setShowDateEditor] = useState(false);
   const [pickerStep, setPickerStep] = useState<'none' | 'date' | 'time'>('none');
@@ -146,69 +173,70 @@ export function HomeScreen(props: Props) {
 
   return (
     <>
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        onScrollBeginDrag={() => setEntryMenuId(null)}
-        onScroll={(event) => {
-          const y = event.nativeEvent.contentOffset.y;
-          setPullDistance(Math.max(0, Math.min(72, -y)));
-        }}
-        onScrollEndDrag={() => {
-          if (!loadingEntries) setPullDistance(0);
-        }}
-        onMomentumScrollEnd={() => {
-          if (!loadingEntries) setPullDistance(0);
-        }}
-        scrollEventThrottle={16}
-        alwaysBounceVertical
-        contentInsetAdjustmentBehavior="never"
-        refreshControl={
-          <RefreshControl
-            refreshing={loadingEntries}
-            onRefresh={onRefreshEntries}
-            tintColor="#f0f6fc"
-            progressViewOffset={0}
-          />
-        }
-      >
-        {loadingEntries || pullDistance > 0 ? (
-          <View style={[styles.refreshGapIndicator, { height: loadingEntries ? 48 : pullDistance }]}>
-            {!loadingEntries ? (
-              <Text style={[styles.refreshHint, { opacity: Math.min(1, pullDistance / 42) }]}>Pull to refresh</Text>
-            ) : null}
-            {loadingEntries ? <ActivityIndicator size="small" color="#f0f6fc" /> : null}
+      <View style={styles.homeMapScreen}>
+        {loadingEntries ? (
+          <View style={styles.homeMapLoadingOverlay}>
+            <ActivityIndicator size="small" color="#f0f6fc" />
           </View>
         ) : null}
-        <MonthOverviewSection
-          monthEntriesCount={monthSummary.monthEntries.length}
-          averageMonthRating={monthSummary.averageMonthRating}
-          uniqueLoggedDays={monthSummary.uniqueLoggedDays}
-          averageMonthBristol={monthSummary.averageMonthBristol}
-          monthlyTip={monthlyTip}
-          monthLabel={monthLabel}
-          calendarCells={monthSummary.calendarCells}
-          onPrevMonth={() => setVisibleMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-          onNextMonth={() => setVisibleMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-        />
-
-        <RecentEntriesSection
+        <HomeMapSection
           entries={entries}
-          loadingEntries={loadingEntries}
-          entryError={entryError}
-          deletingEntryIds={deletingEntryIds}
-          onOpenEntryMenu={(event, entryId) => {
-            setEntryMenuAnchor({
-              x: event.nativeEvent.pageX,
-              y: event.nativeEvent.pageY,
-            });
-            setEntryMenuId((prev) => (prev === entryId ? null : entryId));
-          }}
+          addEntryLoading={addEntryLoading}
+          updatingEntryLocationIds={updatingEntryLocationIds}
+          fullScreen
+          showComposer={showEntryComposer}
+          onOpenComposer={onToggleComposer}
+          onCloseComposer={onCloseComposer}
+          onOpenDetails={() => setShowDetails(true)}
+          onUpdateEntryLocation={onUpdateEntryLocation}
         />
-      </ScrollView>
+        {!!entryError ? <Text style={styles.error}>{entryError}</Text> : null}
+      </View>
 
-      <TouchableOpacity style={[styles.fab, addEntryLoading && styles.buttonDisabled]} onPress={onToggleComposer} disabled={addEntryLoading}>
-        {addEntryLoading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name={showEntryComposer ? 'close' : 'add'} size={28} color="#ffffff" />}
-      </TouchableOpacity>
+      <Modal visible={showDetails} transparent animationType="fade" onRequestClose={() => setShowDetails(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowDetails(false)}>
+          <Pressable style={[styles.modalCard, styles.homeDetailsModalCard]} onPress={() => undefined}>
+            <View style={styles.homeDetailsHeader}>
+              <Text style={styles.title}>Home Details</Text>
+              <TouchableOpacity style={[styles.iconButton, styles.iconButtonGhost]} onPress={() => setShowDetails(false)} accessibilityLabel="Close details">
+                <Ionicons name="close" size={18} color="#f0f6fc" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.homeDetailsScroll} onScrollBeginDrag={() => setEntryMenuId(null)}>
+              <MonthOverviewSection
+                recapTitle={selectedRecapTitle}
+                entryCount={selectedDaySummary ? selectedDaySummary.dayEntries.length : monthSummary.monthEntries.length}
+                averageRating={selectedDaySummary ? selectedDaySummary.averageDayRating : monthSummary.averageMonthRating}
+                thirdStatLabel={selectedDaySummary ? 'Last Log' : 'Days Logged'}
+                thirdStatValue={selectedDaySummary ? (selectedDaySummary.latestEntryTimeLabel ?? '-') : monthSummary.uniqueLoggedDays}
+                averageBristol={selectedDaySummary ? selectedDaySummary.averageDayBristol : monthSummary.averageMonthBristol}
+                tipText={recapTip}
+                monthLabel={monthLabel}
+                calendarCells={monthSummary.calendarCells}
+                selectedDateKey={selectedDateKey}
+                selectedDateEntries={selectedDaySummary?.dayEntries ?? []}
+                onPrevMonth={() => setVisibleMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                onNextMonth={() => setVisibleMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                onSelectDate={(dateKey) => setSelectedDateKey((prev) => (prev === dateKey ? null : dateKey))}
+              />
+
+              <RecentEntriesSection
+                entries={entries}
+                loadingEntries={loadingEntries}
+                entryError={entryError}
+                deletingEntryIds={deletingEntryIds}
+                onOpenEntryMenu={(event, entryId) => {
+                  setEntryMenuAnchor({
+                    x: event.nativeEvent.pageX,
+                    y: event.nativeEvent.pageY,
+                  });
+                  setEntryMenuId((prev) => (prev === entryId ? null : entryId));
+                }}
+              />
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <EntryComposerModal
         visible={showEntryComposer}

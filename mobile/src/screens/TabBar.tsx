@@ -11,10 +11,12 @@ type Props = {
 
 export function TabBar({ tab, onTabChange }: Props) {
   return (
-    <View style={styles.tabRow}>
-      <TabButton tab={tab} label="Home" icon="home" value="home" onPress={onTabChange} />
-      <TabButton tab={tab} label="Social" icon="people" value="social" onPress={onTabChange} />
-      <TabButton tab={tab} label="Account" icon="person" value="account" onPress={onTabChange} />
+    <View style={styles.tabIslandDock} pointerEvents="box-none">
+      <View style={styles.tabRow}>
+        <TabButton tab={tab} label="Home" icon="home" value="home" onPress={onTabChange} />
+        <TabButton tab={tab} label="Social" icon="people" value="social" onPress={onTabChange} />
+        <TabButton tab={tab} label="Account" icon="person" value="account" onPress={onTabChange} />
+      </View>
     </View>
   );
 }

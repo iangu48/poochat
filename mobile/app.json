@@ -10,7 +10,10 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.anonymous.poochat"
+      "bundleIdentifier": "com.anonymous.poochat",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Poochat uses your location to place logs on your map."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +24,8 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "expo-location"
     ]
   }
 }

@@ -16,6 +16,9 @@ export type PoopEntry = {
   bristolType: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   rating: 1 | 2 | 3 | 4 | 5;
   note: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  locationSource: 'gps' | 'manual' | null;
 };
 
 export type LeaderboardRow = {

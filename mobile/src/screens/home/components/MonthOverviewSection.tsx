@@ -1,62 +1,134 @@
+import { useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Animated, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import type { PoopEntry } from '../../../types/domain';
 import { styles } from '../../styles';
-import { getRatingDayStyle, getRatingEmoji, type CalendarCell } from '../utils';
+import { BristolTypeChip } from './EntryVisuals';
+import { formatEntryTimestamp, getRatingColor, getRatingDayStyle, getRatingEmoji, getRatingEmotion, type CalendarCell } from '../utils';
 
 type Props = {
-  monthEntriesCount: number;
-  averageMonthRating: number | null;
-  uniqueLoggedDays: number;
-  averageMonthBristol: number | null;
-  monthlyTip: string;
+  recapTitle: string;
+  entryCount: number;
+  averageRating: number | null;
+  thirdStatLabel: string;
+  thirdStatValue: string | number;
+  averageBristol: number | null;
+  tipText: string;
   monthLabel: string;
   calendarCells: CalendarCell[];
+  selectedDateKey: string | null;
+  selectedDateEntries: PoopEntry[];
   onPrevMonth: () => void;
   onNextMonth: () => void;
+  onSelectDate: (dateKey: string) => void;
 };
 
 export function MonthOverviewSection(props: Props) {
   const {
-    monthEntriesCount,
-    averageMonthRating,
-    uniqueLoggedDays,
-    averageMonthBristol,
-    monthlyTip,
+    recapTitle,
+    entryCount,
+    averageRating,
+    thirdStatLabel,
+    thirdStatValue,
+    averageBristol,
+    tipText,
     monthLabel,
     calendarCells,
+    selectedDateKey,
+    selectedDateEntries,
     onPrevMonth,
     onNextMonth,
+    onSelectDate,
   } = props;
+  const hasSelection = Boolean(selectedDateKey) && selectedDateEntries.length > 0;
+  const [showSelectedEntries, setShowSelectedEntries] = useState(hasSelection);
+  const selectedEntriesAnimation = useRef(new Animated.Value(hasSelection ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (hasSelection) {
+      setShowSelectedEntries(true);
+      Animated.timing(selectedEntriesAnimation, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
+    Animated.timing(selectedEntriesAnimation, {
+      toValue: 0,
+      duration: 140,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) setShowSelectedEntries(false);
+    });
+  }, [hasSelection, selectedEntriesAnimation]);
 
   return (
     <>
       <View style={styles.homeSectionHeader}>
-        <Text style={styles.title}>Your Month</Text>
+        <Text style={styles.title}>{recapTitle}</Text>
       </View>
       <View style={styles.monthStatsRow}>
         <View style={styles.monthStatCard}>
-          <Text style={styles.monthStatValue}>{monthEntriesCount}</Text>
+          <Text style={styles.monthStatValue}>{entryCount}</Text>
           <Text style={styles.monthStatLabel}>Entries</Text>
         </View>
         <View style={styles.monthStatCard}>
           <Text style={styles.monthStatValue}>
-            {averageMonthRating == null ? '-' : `${getRatingEmoji(Math.round(averageMonthRating))} ${averageMonthRating.toFixed(1)}`}
+            {averageRating == null ? '-' : `${getRatingEmoji(Math.round(averageRating))} ${averageRating.toFixed(1)}`}
           </Text>
           <Text style={styles.monthStatLabel}>Avg Comfort</Text>
         </View>
         <View style={styles.monthStatCard}>
-          <Text style={styles.monthStatValue}>{uniqueLoggedDays}</Text>
-          <Text style={styles.monthStatLabel}>Days Logged</Text>
+          <Text style={styles.monthStatValue}>{thirdStatValue}</Text>
+          <Text style={styles.monthStatLabel}>{thirdStatLabel}</Text>
         </View>
         <View style={styles.monthStatCard}>
-          <Text style={styles.monthStatValue}>{averageMonthBristol == null ? '-' : averageMonthBristol.toFixed(1)}</Text>
+          <Text style={styles.monthStatValue}>{averageBristol == null ? '-' : averageBristol.toFixed(1)}</Text>
           <Text style={styles.monthStatLabel}>Avg Bristol</Text>
         </View>
       </View>
       <View style={styles.monthTipCard}>
         <Text style={styles.monthTipTitle}>Tip</Text>
-        <Text style={styles.monthTipText}>{monthlyTip}</Text>
+        <Text style={styles.monthTipText}>{tipText}</Text>
       </View>
+      {showSelectedEntries ? (
+        <Animated.View
+          style={{
+            opacity: selectedEntriesAnimation,
+            transform: [
+              {
+                translateY: selectedEntriesAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-8, 0],
+                }),
+              },
+            ],
+          }}
+          pointerEvents={hasSelection ? 'auto' : 'none'}
+        >
+          <View style={styles.selectedDayEntriesCard}>
+          <Text style={styles.selectedDayEntriesTitle}>Entries on this date</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectedDayEntriesRail}>
+            {selectedDateEntries.map((entry) => (
+              <View key={`selected-day-entry-${entry.id}`} style={styles.selectedDayEntryItem}>
+                <View style={styles.selectedDayEntryTop}>
+                  <BristolTypeChip typeValue={Number(entry.bristolType)} />
+                  <Text style={styles.selectedDayEntryTime}>{formatEntryTimestamp(entry.occurredAt)}</Text>
+                </View>
+                <Text style={[styles.selectedDayEntryRating, { color: getRatingColor(Number(entry.rating)) }]}>
+                  {getRatingEmoji(Number(entry.rating))} {getRatingEmotion(Number(entry.rating))}
+                </Text>
+                <Text style={styles.selectedDayEntryNote} numberOfLines={2}>
+                  {entry.note?.trim() || 'No note'}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+          </View>
+        </Animated.View>
+      ) : null}
 
       <View style={styles.calendarCard}>
         <View style={styles.calendarHeader}>
@@ -85,13 +157,15 @@ export function MonthOverviewSection(props: Props) {
         </View>
         <View style={styles.calendarGrid}>
           {calendarCells.map((cell, index) => (
-            <View
+            <TouchableOpacity
               key={`calendar-cell-${index}`}
+              onPress={() => onSelectDate(cell.dateKey)}
               style={[
                 styles.calendarCell,
                 cell.inCurrentMonth && cell.rating != null ? getRatingDayStyle(cell.rating) : null,
                 !cell.inCurrentMonth ? styles.calendarCellOutside : null,
                 cell.inCurrentMonth && cell.isToday ? styles.calendarCellToday : null,
+                selectedDateKey === cell.dateKey ? styles.calendarCellSelected : null,
               ]}
             >
               {cell.entryCount >= 2 ? (
@@ -111,7 +185,7 @@ export function MonthOverviewSection(props: Props) {
               >
                 {cell.day}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
         <View style={styles.calendarLegendRow}>

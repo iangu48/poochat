@@ -40,9 +40,13 @@ create table if not exists public.poop_entries (
   bristol_type smallint not null check (bristol_type between 1 and 7),
   rating smallint not null check (rating between 1 and 5),
   note text,
+  latitude double precision,
+  longitude double precision,
+  location_source text check (location_source in ('gps', 'manual')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  check (note is null or char_length(note) <= 280)
+  check (note is null or char_length(note) <= 280),
+  check ((latitude is null and longitude is null) or (latitude is not null and longitude is not null))
 );
 
 create table if not exists public.friend_feed_comments (
@@ -147,7 +151,10 @@ set avatar_tint = public.random_avatar_tint()
 where avatar_tint is null;
 
 alter table public.poop_entries
-  add column if not exists visibility public.poop_entry_visibility not null default 'friends_default';
+  add column if not exists visibility public.poop_entry_visibility not null default 'friends_default',
+  add column if not exists latitude double precision,
+  add column if not exists longitude double precision,
+  add column if not exists location_source text check (location_source in ('gps', 'manual'));
 
 alter table public.chat_rooms
   add column if not exists room_type public.chat_room_type not null default 'dm',
@@ -164,6 +171,10 @@ create index if not exists poop_entries_user_occurred_idx
 
 create index if not exists poop_entries_occurred_idx
   on public.poop_entries(occurred_at desc);
+
+create index if not exists poop_entries_location_idx
+  on public.poop_entries(latitude, longitude)
+  where latitude is not null and longitude is not null;
 
 create index if not exists chat_messages_room_created_idx
   on public.chat_messages(room_id, created_at desc);

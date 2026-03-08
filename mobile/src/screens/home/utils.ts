@@ -2,6 +2,7 @@ import type { PoopEntry } from '../../types/domain';
 
 export type CalendarCell = {
   day: number;
+  dateKey: string;
   rating: number | null;
   entryCount: number;
   isToday: boolean;
@@ -15,6 +16,13 @@ export type MonthSummary = {
   uniqueLoggedDays: number;
   latestRatingByDay: Record<string, number>;
   calendarCells: CalendarCell[];
+};
+
+export type DaySummary = {
+  dayEntries: PoopEntry[];
+  averageDayRating: number | null;
+  averageDayBristol: number | null;
+  latestEntryTimeLabel: string | null;
 };
 
 export function getMonthSummary(entries: PoopEntry[], visibleMonthStart: Date, now: Date): MonthSummary {
@@ -51,8 +59,11 @@ export function getMonthSummary(entries: PoopEntry[], visibleMonthStart: Date, n
   const calendarCells: CalendarCell[] = [];
 
   for (let i = 0; i < leadingEmpty; i += 1) {
+    const day = prevMonthDays - leadingEmpty + i + 1;
+    const current = new Date(visibleMonthStart.getFullYear(), visibleMonthStart.getMonth() - 1, day);
     calendarCells.push({
-      day: prevMonthDays - leadingEmpty + i + 1,
+      day,
+      dateKey: getLocalDateKey(current),
       rating: null,
       entryCount: 0,
       isToday: false,
@@ -65,6 +76,7 @@ export function getMonthSummary(entries: PoopEntry[], visibleMonthStart: Date, n
     const key = getLocalDateKey(current);
     calendarCells.push({
       day,
+      dateKey: key,
       rating: latestRatingByDay[key] ?? null,
       entryCount: entryCountByDay[key] ?? 0,
       isToday:
@@ -77,8 +89,10 @@ export function getMonthSummary(entries: PoopEntry[], visibleMonthStart: Date, n
 
   let nextMonthDay = 1;
   while (calendarCells.length < 42) {
+    const current = new Date(visibleMonthStart.getFullYear(), visibleMonthStart.getMonth() + 1, nextMonthDay);
     calendarCells.push({
       day: nextMonthDay,
+      dateKey: getLocalDateKey(current),
       rating: null,
       entryCount: 0,
       isToday: false,
@@ -286,4 +300,47 @@ export function getMonthlyTip(averageBristol: number | null, averageRating: numb
   if (averageRating < 3) return 'You are showing up consistently. Small routine tweaks can improve comfort.';
   if (averageRating >= 4 && averageBristol >= 3.5 && averageBristol <= 4.5) return "You're doing great. Keep your routine steady.";
   return 'Nice consistency this month. Keep tracking to spot patterns early.';
+}
+
+export function getDaySummary(entries: PoopEntry[], dateKey: string): DaySummary {
+  const dayEntries = entries
+    .filter((entry) => getLocalDateKey(new Date(entry.occurredAt)) === dateKey)
+    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+
+  const averageDayRating = dayEntries.length > 0
+    ? dayEntries.reduce((sum, entry) => sum + Number(entry.rating), 0) / dayEntries.length
+    : null;
+
+  const averageDayBristol = dayEntries.length > 0
+    ? dayEntries.reduce((sum, entry) => sum + Number(entry.bristolType), 0) / dayEntries.length
+    : null;
+
+  const latestEntryTimeLabel = dayEntries.length > 0
+    ? new Date(dayEntries[0].occurredAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : null;
+
+  return { dayEntries, averageDayRating, averageDayBristol, latestEntryTimeLabel };
+}
+
+export function getDateLabelFromKey(dateKey: string): string {
+  const [yearStr, monthStr, dayStr] = dateKey.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return dateKey;
+  return new Date(year, month - 1, day).toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+export function getDailyTip(averageBristol: number | null, averageRating: number | null, entryCount: number): string {
+  if (entryCount === 0) return 'No logs on this date yet.';
+  if (averageBristol == null || averageRating == null) return 'Add another entry for better signal.';
+  if (averageBristol < 3) return 'This day trended on the harder side. Hydration and fiber may help.';
+  if (averageBristol > 5.5) return 'This day trended loose. Hydrate and monitor patterns.';
+  if (averageRating >= 4) return 'Comfort looked good on this day.';
+  if (averageRating <= 2.5) return 'Lower comfort on this day. Watch for triggers.';
+  return 'Moderate day. Keep logging consistently.';
 }

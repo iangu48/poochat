@@ -16,6 +16,9 @@ export type NewPoopEntryInput = {
   bristolType: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   rating: 1 | 2 | 3 | 4 | 5;
   note?: string;
+  latitude?: number;
+  longitude?: number;
+  locationSource?: 'gps' | 'manual';
 };
 
 export interface PoopService {
@@ -23,7 +26,7 @@ export interface PoopService {
   createMine(input: NewPoopEntryInput): Promise<PoopEntry>;
   updateMine(
     entryId: UUID,
-    input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'note'>>
+    input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'note' | 'latitude' | 'longitude' | 'locationSource'>>
   ): Promise<PoopEntry>;
   deleteMine(entryId: UUID): Promise<void>;
 }
