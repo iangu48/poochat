@@ -105,6 +105,8 @@ export default function App() {
     onEntryDateChange: app.setEntryDate,
     onEntryTimeChange: app.setEntryTime,
     onAddEntry: () => void app.handleAddEntry(),
+    onComposerLocationChange: (latitude: number, longitude: number, source?: 'gps' | 'manual') =>
+      app.handleSetEntryComposerLocation(latitude, longitude, source),
     onCloseComposer: app.closeEntryComposer,
   };
 

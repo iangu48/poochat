@@ -13,6 +13,7 @@ declare module 'react-native-pager-view' {
   export type PagerViewProps = {
     style?: any;
     initialPage?: number;
+    scrollEnabled?: boolean;
     children?: React.ReactNode;
     onPageSelected?: (event: PageSelectedEvent) => void;
   };

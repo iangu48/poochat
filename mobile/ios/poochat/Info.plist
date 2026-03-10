@@ -37,6 +37,10 @@
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Poochat uses your location to place logs on your map.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Poochat uses your location to place logs on your map.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
       <key>NSAllowsArbitraryLoads</key>

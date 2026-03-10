@@ -12,7 +12,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.anonymous.poochat",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Poochat uses your location to place logs on your map."
+        "NSLocationWhenInUseUsageDescription": "Poochat uses your location to place logs on your map.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Poochat uses your location to place logs on your map."
       }
     },
     "android": {

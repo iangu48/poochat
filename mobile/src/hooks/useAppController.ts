@@ -74,6 +74,7 @@ export function useAppController() {
   const [entryDate, setEntryDate] = useState(formatDateInput(new Date()));
   const [entryTime, setEntryTime] = useState(formatTimeInput(new Date()));
   const [showEntryComposer, setShowEntryComposer] = useState(false);
+  const [entryComposerLocation, setEntryComposerLocation] = useState<{ latitude: number; longitude: number; source: 'gps' | 'manual' } | null>(null);
   const [addEntryLoading, setAddEntryLoading] = useState(false);
   const [updatingEntryLocationIds, setUpdatingEntryLocationIds] = useState<string[]>([]);
   const [deletingEntryIds, setDeletingEntryIds] = useState<string[]>([]);
@@ -697,7 +698,7 @@ export function useAppController() {
           note: note.trim() || undefined,
         });
       } else {
-        const currentLocation = await getCurrentCoordinates();
+        const currentLocation = entryComposerLocation ?? await getCurrentCoordinates();
         await poopService.createMine({
           occurredAt: occurredAtIso,
           bristolType: typeValue as 1 | 2 | 3 | 4 | 5 | 6 | 7,
@@ -705,11 +706,12 @@ export function useAppController() {
           note: note.trim() || undefined,
           latitude: currentLocation?.latitude,
           longitude: currentLocation?.longitude,
-          locationSource: currentLocation ? 'gps' : undefined,
+          locationSource: currentLocation?.source,
         });
       }
       setNote('');
       setEditingEntryId(null);
+      setEntryComposerLocation(null);
       setShowEntryComposer(false);
       await Promise.all([refreshEntries(), refreshFeed()]);
     } catch (error) {
@@ -728,11 +730,13 @@ export function useAppController() {
     const now = new Date();
     setEntryDate(formatDateInput(now));
     setEntryTime(formatTimeInput(now));
+    setEntryComposerLocation(null);
     setShowEntryComposer(true);
   }
 
   function closeEntryComposer(): void {
     setEditingEntryId(null);
+    setEntryComposerLocation(null);
     setShowEntryComposer(false);
   }
 
@@ -745,7 +749,15 @@ export function useAppController() {
     const occurredAtDate = new Date(entry.occurredAt);
     setEntryDate(formatDateInput(occurredAtDate));
     setEntryTime(formatTimeInput(occurredAtDate));
+    setEntryComposerLocation(null);
     setShowEntryComposer(true);
+  }
+
+  function handleSetEntryComposerLocation(latitude: number, longitude: number, source: 'gps' | 'manual' = 'manual'): void {
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    setEntryComposerLocation({ latitude: lat, longitude: lon, source });
   }
 
   async function handleDeleteEntry(entryId: string): Promise<void> {
@@ -1234,6 +1246,7 @@ export function useAppController() {
     handleDeleteEntry,
     handleUpdateEntryLocation,
     handleAddEntry,
+    handleSetEntryComposerLocation,
     openAddEntryComposer,
     closeEntryComposer,
     handleStartEditEntry,
@@ -1345,7 +1358,7 @@ function combineDateTimeInputs(dateInput: string, timeInput: string): string {
   return combined.toISOString();
 }
 
-async function getCurrentCoordinates(): Promise<{ latitude: number; longitude: number } | null> {
+async function getCurrentCoordinates(): Promise<{ latitude: number; longitude: number; source: 'gps' } | null> {
   try {
     const Location = require('expo-location');
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -1356,7 +1369,7 @@ async function getCurrentCoordinates(): Promise<{ latitude: number; longitude: n
     const latitude = Number(position?.coords?.latitude);
     const longitude = Number(position?.coords?.longitude);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-    return { latitude, longitude };
+    return { latitude, longitude, source: 'gps' };
   } catch {
     return null;
   }

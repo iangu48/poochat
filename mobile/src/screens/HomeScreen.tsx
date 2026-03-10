@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, LayoutChangeEvent, Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import PagerView from 'react-native-pager-view';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import type { PoopEntry } from '../types/domain';
 import { styles } from './styles';
@@ -44,6 +45,7 @@ type Props = {
   onEntryDateChange: (value: string) => void;
   onEntryTimeChange: (value: string) => void;
   onAddEntry: () => void;
+  onComposerLocationChange: (latitude: number, longitude: number, source?: 'gps' | 'manual') => void;
   onCloseComposer: () => void;
 };
 
@@ -72,6 +74,7 @@ export function HomeScreen(props: Props) {
     onEntryDateChange,
     onEntryTimeChange,
     onAddEntry,
+    onComposerLocationChange,
     onCloseComposer,
   } = props;
 
@@ -111,6 +114,8 @@ export function HomeScreen(props: Props) {
   const [dateStepActionsRowY, setDateStepActionsRowY] = useState(0);
   const [entryActionsRowY, setEntryActionsRowY] = useState(0);
   const entryComposerScrollRef = useRef<ScrollView | null>(null);
+  const homeDetailsPagerRef = useRef<PagerView | null>(null);
+  const [homeDetailsPage, setHomeDetailsPage] = useState(0);
 
   const menuWidth = 140;
   const screenWidth = Dimensions.get('window').width;
@@ -189,53 +194,102 @@ export function HomeScreen(props: Props) {
           onCloseComposer={onCloseComposer}
           onOpenDetails={() => setShowDetails(true)}
           onUpdateEntryLocation={onUpdateEntryLocation}
+          onComposerLocationChange={onComposerLocationChange}
         />
         {!!entryError ? <Text style={styles.error}>{entryError}</Text> : null}
       </View>
 
       <Modal visible={showDetails} transparent animationType="fade" onRequestClose={() => setShowDetails(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowDetails(false)}>
-          <Pressable style={[styles.modalCard, styles.homeDetailsModalCard]} onPress={() => undefined}>
+        <View style={styles.modalBackdrop}>
+          <Pressable style={styles.modalBackdropTapArea} onPress={() => setShowDetails(false)} />
+          <View style={[styles.modalCard, styles.homeDetailsModalCard]}>
             <View style={styles.homeDetailsHeader}>
-              <Text style={styles.title}>Home Details</Text>
+              <View style={styles.homeDetailsTabRow}>
+                <TouchableOpacity
+                  style={[styles.homeDetailsTabButton, homeDetailsPage === 0 ? styles.homeDetailsTabButtonActive : null]}
+                  onPress={() => {
+                    setHomeDetailsPage(0);
+                    homeDetailsPagerRef.current?.setPage(0);
+                  }}
+                >
+                  <Text style={[styles.homeDetailsTabText, homeDetailsPage === 0 ? styles.homeDetailsTabTextActive : null]}>Overview</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.homeDetailsTabButton, homeDetailsPage === 1 ? styles.homeDetailsTabButtonActive : null]}
+                  onPress={() => {
+                    setHomeDetailsPage(1);
+                    homeDetailsPagerRef.current?.setPage(1);
+                  }}
+                >
+                  <Text style={[styles.homeDetailsTabText, homeDetailsPage === 1 ? styles.homeDetailsTabTextActive : null]}>Recent</Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity style={[styles.iconButton, styles.iconButtonGhost]} onPress={() => setShowDetails(false)} accessibilityLabel="Close details">
                 <Ionicons name="close" size={18} color="#f0f6fc" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.homeDetailsScroll} onScrollBeginDrag={() => setEntryMenuId(null)}>
-              <MonthOverviewSection
-                recapTitle={selectedRecapTitle}
-                entryCount={selectedDaySummary ? selectedDaySummary.dayEntries.length : monthSummary.monthEntries.length}
-                averageRating={selectedDaySummary ? selectedDaySummary.averageDayRating : monthSummary.averageMonthRating}
-                thirdStatLabel={selectedDaySummary ? 'Last Log' : 'Days Logged'}
-                thirdStatValue={selectedDaySummary ? (selectedDaySummary.latestEntryTimeLabel ?? '-') : monthSummary.uniqueLoggedDays}
-                averageBristol={selectedDaySummary ? selectedDaySummary.averageDayBristol : monthSummary.averageMonthBristol}
-                tipText={recapTip}
-                monthLabel={monthLabel}
-                calendarCells={monthSummary.calendarCells}
-                selectedDateKey={selectedDateKey}
-                selectedDateEntries={selectedDaySummary?.dayEntries ?? []}
-                onPrevMonth={() => setVisibleMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-                onNextMonth={() => setVisibleMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-                onSelectDate={(dateKey) => setSelectedDateKey((prev) => (prev === dateKey ? null : dateKey))}
-              />
+            <PagerView
+              ref={homeDetailsPagerRef}
+              style={styles.homeDetailsPager}
+              initialPage={0}
+              scrollEnabled={false}
+              onPageSelected={(event: any) => setHomeDetailsPage(event.nativeEvent.position)}
+            >
+              <View key="overview" style={styles.homeDetailsPage}>
+                <ScrollView
+                  style={styles.homeDetailsScroll}
+                  contentContainerStyle={styles.homeDetailsScrollContent}
+                  onScrollBeginDrag={() => setEntryMenuId(null)}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <MonthOverviewSection
+                    recapTitle={selectedRecapTitle}
+                    entryCount={selectedDaySummary ? selectedDaySummary.dayEntries.length : monthSummary.monthEntries.length}
+                    averageRating={selectedDaySummary ? selectedDaySummary.averageDayRating : monthSummary.averageMonthRating}
+                    thirdStatLabel={selectedDaySummary ? 'Last Log' : 'Days Logged'}
+                    thirdStatValue={selectedDaySummary ? (selectedDaySummary.latestEntryTimeLabel ?? '-') : monthSummary.uniqueLoggedDays}
+                    averageBristol={selectedDaySummary ? selectedDaySummary.averageDayBristol : monthSummary.averageMonthBristol}
+                    tipText={recapTip}
+                    monthLabel={monthLabel}
+                    calendarCells={monthSummary.calendarCells}
+                    selectedDateKey={selectedDateKey}
+                    selectedDateEntries={selectedDaySummary?.dayEntries ?? []}
+                    onPrevMonth={() => setVisibleMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                    onNextMonth={() => setVisibleMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                    onSelectDate={(dateKey) => setSelectedDateKey((prev) => (prev === dateKey ? null : dateKey))}
+                  />
+                </ScrollView>
+              </View>
 
-              <RecentEntriesSection
-                entries={entries}
-                loadingEntries={loadingEntries}
-                entryError={entryError}
-                deletingEntryIds={deletingEntryIds}
-                onOpenEntryMenu={(event, entryId) => {
-                  setEntryMenuAnchor({
-                    x: event.nativeEvent.pageX,
-                    y: event.nativeEvent.pageY,
-                  });
-                  setEntryMenuId((prev) => (prev === entryId ? null : entryId));
-                }}
-              />
-            </ScrollView>
-          </Pressable>
-        </Pressable>
+              <View key="recent" style={styles.homeDetailsPage}>
+                <ScrollView
+                  style={styles.homeDetailsScroll}
+                  contentContainerStyle={styles.homeDetailsScrollContent}
+                  onScrollBeginDrag={() => setEntryMenuId(null)}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <RecentEntriesSection
+                    entries={entries}
+                    loadingEntries={loadingEntries}
+                    entryError={entryError}
+                    deletingEntryIds={deletingEntryIds}
+                    onOpenEntryMenu={(event, entryId) => {
+                      setEntryMenuAnchor({
+                        x: event.nativeEvent.pageX,
+                        y: event.nativeEvent.pageY,
+                      });
+                      setEntryMenuId((prev) => (prev === entryId ? null : entryId));
+                    }}
+                  />
+                </ScrollView>
+              </View>
+            </PagerView>
+            <View style={styles.homeDetailsDotsRow}>
+              <View style={[styles.homeDetailsDot, homeDetailsPage === 0 ? styles.homeDetailsDotActive : null]} />
+              <View style={[styles.homeDetailsDot, homeDetailsPage === 1 ? styles.homeDetailsDotActive : null]} />
+            </View>
+          </View>
+        </View>
       </Modal>
 
       <EntryComposerModal

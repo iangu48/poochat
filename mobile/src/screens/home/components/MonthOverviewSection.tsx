@@ -67,7 +67,7 @@ export function MonthOverviewSection(props: Props) {
   return (
     <>
       <View style={styles.homeSectionHeader}>
-        <Text style={styles.title}>{recapTitle}</Text>
+        <Text style={styles.sectionTitle}>{recapTitle}</Text>
       </View>
       <View style={styles.monthStatsRow}>
         <View style={styles.monthStatCard}>

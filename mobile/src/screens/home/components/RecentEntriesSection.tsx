@@ -19,7 +19,7 @@ export function RecentEntriesSection(props: Props) {
   return (
     <>
       <View style={styles.homeSectionHeader}>
-        <Text style={styles.title}>Recent Entries</Text>
+        <Text style={styles.sectionTitle}>Recent Entries</Text>
       </View>
       {loadingEntries && <Text style={styles.muted}>Loading...</Text>}
       {!!entryError && <Text style={styles.error}>{entryError}</Text>}
