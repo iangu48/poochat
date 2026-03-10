@@ -11,6 +11,8 @@ const MarkerComponent = MapsLib?.Marker ?? null;
 const CircleComponent = MapsLib?.Circle ?? null;
 const CROSSHAIR_DEFAULT_X_RATIO = 0.5;
 const CROSSHAIR_DEFAULT_Y_RATIO = 0.33;
+const RECENTER_TARGET_LONGITUDE_DELTA = 0.020;
+const RECENTER_ZOOM_TOLERANCE = 0.0006;
 
 type Props = {
   entries: PoopEntry[];
@@ -53,6 +55,8 @@ export function HomeMapSection(props: Props) {
   const composerDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const motionSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapIsMovingRef = useRef(false);
+  const hasInitialRegionSettledRef = useRef(false);
+  const programmaticMoveRef = useRef(false);
   const clusters = useMemo(() => clusterEntryLocations(locations, region), [locations, region]);
   const mapMarkers = useMemo(() => {
     if (Platform.OS === 'ios') {
@@ -193,6 +197,7 @@ export function HomeMapSection(props: Props) {
     target: { latitude: number; longitude: number },
     durationMs: number,
   ): Promise<void> {
+    programmaticMoveRef.current = true;
     const mapInstance = mapRef.current;
     const crosshairPoint = getCrosshairPointInMap();
     const hasProjection = mapInstance
@@ -253,6 +258,28 @@ export function HomeMapSection(props: Props) {
         longitude: target.longitude - (xRatio - 0.5) * region.longitudeDelta,
         latitudeDelta: region.latitudeDelta,
         longitudeDelta: region.longitudeDelta,
+      };
+    }
+
+    const currentAspectRatio = (
+      Number.isFinite(region.latitudeDelta)
+      && Number.isFinite(region.longitudeDelta)
+      && Math.abs(region.longitudeDelta) > 1e-9
+    )
+      ? region.latitudeDelta / region.longitudeDelta
+      : 1.5;
+    const targetLongitudeDelta = RECENTER_TARGET_LONGITUDE_DELTA;
+    const targetLatitudeDelta = Math.max(0.0002, Math.abs(targetLongitudeDelta * currentAspectRatio));
+    const shouldZoomIn = region.longitudeDelta > (targetLongitudeDelta + RECENTER_ZOOM_TOLERANCE);
+
+    if (shouldZoomIn) {
+      const latOffsetRatio = (target.latitude - nextRegion.latitude) / Math.max(region.latitudeDelta, 1e-9);
+      const lngOffsetRatio = (target.longitude - nextRegion.longitude) / Math.max(region.longitudeDelta, 1e-9);
+      nextRegion = {
+        latitude: target.latitude - latOffsetRatio * targetLatitudeDelta,
+        longitude: target.longitude - lngOffsetRatio * targetLongitudeDelta,
+        latitudeDelta: targetLatitudeDelta,
+        longitudeDelta: targetLongitudeDelta,
       };
     }
 
@@ -391,6 +418,7 @@ export function HomeMapSection(props: Props) {
             }}
             onRegionChangeComplete={(nextRegion: MapRegion) => {
               void (async () => {
+                hasInitialRegionSettledRef.current = true;
                 setRegion(nextRegion);
                 refreshCrosshairGeometry();
                 if (showComposer) {
@@ -400,11 +428,15 @@ export function HomeMapSection(props: Props) {
                   clearTimeout(motionSettleTimerRef.current);
                 }
                 motionSettleTimerRef.current = setTimeout(() => {
+                  programmaticMoveRef.current = false;
                   setMapMoving(false);
                 }, 120);
               })();
             }}
             onRegionChange={() => {
+              if (!hasInitialRegionSettledRef.current && !programmaticMoveRef.current) {
+                return;
+              }
               setMapMoving(true);
             }}
             onPress={() => {
