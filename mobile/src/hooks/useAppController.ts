@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TextInput as TextInputHandle } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { RealtimePostgresInsertPayload, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import {
@@ -26,6 +27,8 @@ import type { ChatRoute } from '../screens/ChatScreen';
 
 type AuthMethod = 'phone' | 'email';
 export type SocialSection = 'feed' | 'friends';
+export type ThemeMode = 'dark' | 'light';
+const THEME_MODE_KEY = 'poochat.theme_mode';
 
 export function useAppController() {
   const [session, setSession] = useState<Session | null>(null);
@@ -52,6 +55,7 @@ export function useAppController() {
 
   const [tab, setTab] = useState<Tab>('home');
   const [socialSection, setSocialSection] = useState<SocialSection>('friends');
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
 
   const [myProfile, setMyProfile] = useState<Profile | null>(null);
   const [profilesById, setProfilesById] = useState<Record<string, Profile>>({});
@@ -135,6 +139,24 @@ export function useAppController() {
   const [chatProposeInviteLoading, setChatProposeInviteLoading] = useState(false);
   const [chatRefreshMessagesLoading, setChatRefreshMessagesLoading] = useState(false);
   const [chatSendMessageLoading, setChatSendMessageLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(THEME_MODE_KEY);
+        if (!active) return;
+        if (stored === 'light' || stored === 'dark') {
+          setThemeMode(stored);
+        }
+      } catch {
+        // Keep default mode on storage failures.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -1173,8 +1195,20 @@ export function useAppController() {
     return acc;
   }, {});
 
+  async function handleToggleThemeMode(): Promise<void> {
+    const nextMode: ThemeMode = themeMode === 'dark' ? 'light' : 'dark';
+    setThemeMode(nextMode);
+    try {
+      await AsyncStorage.setItem(THEME_MODE_KEY, nextMode);
+    } catch {
+      // Keep in-memory mode even if persistence fails.
+    }
+  }
+
   return {
     session,
+    themeMode,
+    handleToggleThemeMode,
     tab,
     setTab,
     socialSection,

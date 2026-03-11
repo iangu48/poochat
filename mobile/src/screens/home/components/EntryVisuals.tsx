@@ -1,13 +1,17 @@
 import { TouchableOpacity, Text, View } from 'react-native';
 import { styles } from '../../styles';
 import { getRatingEmoji, getRatingEmotion, getRatingPillColors } from '../utils';
+import { getThemePalette, type ThemeMode } from '../../../theme';
 
-export function BristolVisual({ typeValue }: { typeValue: number }) {
+export function BristolVisual({ typeValue, themeMode = 'dark' }: { typeValue: number; themeMode?: ThemeMode }) {
+  const colors = getThemePalette(themeMode);
   const value = Math.max(1, Math.min(7, Math.round(typeValue)));
+  const cardStyle = { backgroundColor: colors.surfaceAlt, borderColor: colors.border };
+  const textStyle = { color: colors.mutedText };
 
   if (value === 1) {
     return (
-      <View style={styles.bristolVisualCard}>
+      <View style={[styles.bristolVisualCard, cardStyle]}>
         <View style={styles.bristolVisualGlyphWrap}>
           <View style={styles.bristolDotsRow}>
             {Array.from({ length: 6 }).map((_, index) => (
@@ -17,14 +21,14 @@ export function BristolVisual({ typeValue }: { typeValue: number }) {
             ))}
           </View>
         </View>
-        <Text style={styles.bristolVisualText}>Hard separate lumps</Text>
+        <Text style={[styles.bristolVisualText, textStyle]}>Hard separate lumps</Text>
       </View>
     );
   }
 
   if (value === 2) {
     return (
-      <View style={styles.bristolVisualCard}>
+      <View style={[styles.bristolVisualCard, cardStyle]}>
         <View style={styles.bristolVisualGlyphWrap}>
           <View style={styles.bristolLumpySausage}>
             <View style={styles.bristolTextureRow}>
@@ -35,14 +39,14 @@ export function BristolVisual({ typeValue }: { typeValue: number }) {
             <View style={styles.bristolContourLine} />
           </View>
         </View>
-        <Text style={styles.bristolVisualText}>Lumpy sausage</Text>
+        <Text style={[styles.bristolVisualText, textStyle]}>Lumpy sausage</Text>
       </View>
     );
   }
 
   if (value === 3) {
     return (
-      <View style={styles.bristolVisualCard}>
+      <View style={[styles.bristolVisualCard, cardStyle]}>
         <View style={styles.bristolVisualGlyphWrap}>
           <View style={[styles.bristolSmoothSausage, styles.bristolCracked]}>
             <View style={styles.bristolCrackMarkA} />
@@ -51,28 +55,28 @@ export function BristolVisual({ typeValue }: { typeValue: number }) {
             <View style={styles.bristolShadowBand} />
           </View>
         </View>
-        <Text style={styles.bristolVisualText}>Sausage with cracks</Text>
+        <Text style={[styles.bristolVisualText, textStyle]}>Sausage with cracks</Text>
       </View>
     );
   }
 
   if (value === 4) {
     return (
-      <View style={styles.bristolVisualCard}>
+      <View style={[styles.bristolVisualCard, cardStyle]}>
         <View style={styles.bristolVisualGlyphWrap}>
           <View style={styles.bristolSmoothSausage}>
             <View style={styles.bristolHighlight} />
             <View style={styles.bristolHighlightSoft} />
           </View>
         </View>
-        <Text style={styles.bristolVisualText}>Smooth, soft sausage (ideal)</Text>
+        <Text style={[styles.bristolVisualText, textStyle]}>Smooth, soft sausage (ideal)</Text>
       </View>
     );
   }
 
   if (value === 5) {
     return (
-      <View style={styles.bristolVisualCard}>
+      <View style={[styles.bristolVisualCard, cardStyle]}>
         <View style={styles.bristolVisualGlyphWrap}>
           <View style={styles.bristolDotsRow}>
             {Array.from({ length: 4 }).map((_, index) => (
@@ -82,14 +86,14 @@ export function BristolVisual({ typeValue }: { typeValue: number }) {
             ))}
           </View>
         </View>
-        <Text style={styles.bristolVisualText}>Soft blobs</Text>
+        <Text style={[styles.bristolVisualText, textStyle]}>Soft blobs</Text>
       </View>
     );
   }
 
   if (value === 6) {
     return (
-      <View style={styles.bristolVisualCard}>
+      <View style={[styles.bristolVisualCard, cardStyle]}>
         <View style={styles.bristolVisualGlyphWrap}>
           <View style={styles.bristolMushy}>
             <View style={styles.bristolMushyLayer} />
@@ -98,13 +102,13 @@ export function BristolVisual({ typeValue }: { typeValue: number }) {
             <View style={styles.bristolMushyGrainB} />
           </View>
         </View>
-        <Text style={styles.bristolVisualText}>Mushy consistency</Text>
+        <Text style={[styles.bristolVisualText, textStyle]}>Mushy consistency</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.bristolVisualCard}>
+    <View style={[styles.bristolVisualCard, cardStyle]}>
       <View style={styles.bristolVisualGlyphWrap}>
         <View style={styles.bristolLiquid}>
           <View style={styles.bristolWaveA} />
@@ -112,17 +116,26 @@ export function BristolVisual({ typeValue }: { typeValue: number }) {
           <View style={styles.bristolWaveC} />
         </View>
       </View>
-      <Text style={styles.bristolVisualText}>Mostly liquid / watery</Text>
+      <Text style={[styles.bristolVisualText, textStyle]}>Mostly liquid / watery</Text>
     </View>
   );
 }
 
-export function BristolTypeChip({ typeValue }: { typeValue: number }) {
+export function BristolTypeChip({
+  typeValue,
+  themeMode = 'dark',
+}: {
+  typeValue: number;
+  themeMode?: ThemeMode;
+}) {
+  const colors = getThemePalette(themeMode);
   const value = Math.max(1, Math.min(7, Math.round(typeValue)));
+  const chipStyle = { backgroundColor: colors.surfaceAlt, borderColor: colors.border };
+  const notchStyle = { backgroundColor: colors.surfaceAlt };
 
   if (value === 1) {
     return (
-      <View style={styles.entryTypeChip}>
+      <View style={[styles.entryTypeChip, chipStyle]}>
         <View style={styles.entryTypeDotsRow}>
           <View style={[styles.entryTypeDot, styles.entryTypeDotHard]} />
           <View style={[styles.entryTypeDot, styles.entryTypeDotHard]} />
@@ -136,10 +149,10 @@ export function BristolTypeChip({ typeValue }: { typeValue: number }) {
 
   if (value === 2) {
     return (
-      <View style={styles.entryTypeChip}>
+      <View style={[styles.entryTypeChip, chipStyle]}>
         <View style={styles.entryTypePillLumpy}>
-          <View style={styles.entryTypeNotchA} />
-          <View style={styles.entryTypeNotchB} />
+          <View style={[styles.entryTypeNotchA, notchStyle]} />
+          <View style={[styles.entryTypeNotchB, notchStyle]} />
         </View>
       </View>
     );
@@ -147,7 +160,7 @@ export function BristolTypeChip({ typeValue }: { typeValue: number }) {
 
   if (value === 3) {
     return (
-      <View style={styles.entryTypeChip}>
+      <View style={[styles.entryTypeChip, chipStyle]}>
         <View style={styles.entryTypePillCracked}>
           <View style={styles.entryTypeCrackA} />
           <View style={styles.entryTypeCrackB} />
@@ -158,7 +171,7 @@ export function BristolTypeChip({ typeValue }: { typeValue: number }) {
 
   if (value === 4) {
     return (
-      <View style={styles.entryTypeChip}>
+      <View style={[styles.entryTypeChip, chipStyle]}>
         <View style={styles.entryTypePillSmooth}>
           <View style={styles.entryTypeHighlight} />
         </View>
@@ -168,7 +181,7 @@ export function BristolTypeChip({ typeValue }: { typeValue: number }) {
 
   if (value === 5) {
     return (
-      <View style={styles.entryTypeChip}>
+      <View style={[styles.entryTypeChip, chipStyle]}>
         <View style={styles.entryTypeDotsRow}>
           <View style={[styles.entryTypeDot, styles.entryTypeDotSoft]} />
           <View style={[styles.entryTypeDot, styles.entryTypeDotSoft]} />
@@ -180,7 +193,7 @@ export function BristolTypeChip({ typeValue }: { typeValue: number }) {
 
   if (value === 6) {
     return (
-      <View style={styles.entryTypeChip}>
+      <View style={[styles.entryTypeChip, chipStyle]}>
         <View style={styles.entryTypeMushy}>
           <View style={styles.entryTypeMushyLayer} />
           <View style={styles.entryTypeMushyLayerSmall} />
@@ -190,7 +203,7 @@ export function BristolTypeChip({ typeValue }: { typeValue: number }) {
   }
 
   return (
-    <View style={styles.entryTypeChip}>
+    <View style={[styles.entryTypeChip, chipStyle]}>
       <View style={styles.entryTypeLiquid}>
         <View style={styles.entryTypeWaveA} />
         <View style={styles.entryTypeWaveB} />
@@ -199,17 +212,26 @@ export function BristolTypeChip({ typeValue }: { typeValue: number }) {
   );
 }
 
-export function RatingVisual({ ratingValue, onSelect }: { ratingValue: number; onSelect: (value: number) => void }) {
+export function RatingVisual({
+  ratingValue,
+  onSelect,
+  themeMode = 'dark',
+}: {
+  ratingValue: number;
+  onSelect: (value: number) => void;
+  themeMode?: ThemeMode;
+}) {
+  const colors = getThemePalette(themeMode);
   const value = Math.max(1, Math.min(5, Math.round(ratingValue)));
   const levels = [1, 2, 3, 4, 5];
 
   return (
-    <View style={styles.ratingVisualCard}>
-      <Text style={styles.ratingVisualTitle}>Emotion by Rating</Text>
+    <View style={[styles.ratingVisualCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+      <Text style={[styles.ratingVisualTitle, { color: colors.mutedText }]}>Emotion by Rating</Text>
       <View style={styles.ratingPillRow}>
         {levels.map((level) => {
           const selected = level === value;
-          const pillColors = getRatingPillColors(level, selected);
+          const pillColors = getRatingPillColors(level, selected, themeMode);
           return (
             <TouchableOpacity
               key={`rating-pill-${level}`}

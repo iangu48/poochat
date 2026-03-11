@@ -3,10 +3,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Animated, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import type { PoopEntry } from '../../../types/domain';
 import { styles } from '../../styles';
+import { getThemePalette, type ThemeMode } from '../../../theme';
 import { BristolTypeChip } from './EntryVisuals';
 import { formatEntryTimestamp, getRatingColor, getRatingDayStyle, getRatingEmoji, getRatingEmotion, type CalendarCell } from '../utils';
 
 type Props = {
+  themeMode: ThemeMode;
   recapTitle: string;
   entryCount: number;
   averageRating: number | null;
@@ -25,6 +27,7 @@ type Props = {
 
 export function MonthOverviewSection(props: Props) {
   const {
+    themeMode,
     recapTitle,
     entryCount,
     averageRating,
@@ -40,6 +43,7 @@ export function MonthOverviewSection(props: Props) {
     onNextMonth,
     onSelectDate,
   } = props;
+  const colors = getThemePalette(themeMode);
   const hasSelection = Boolean(selectedDateKey) && selectedDateEntries.length > 0;
   const [showSelectedEntries, setShowSelectedEntries] = useState(hasSelection);
   const selectedEntriesAnimation = useRef(new Animated.Value(hasSelection ? 1 : 0)).current;
@@ -67,31 +71,31 @@ export function MonthOverviewSection(props: Props) {
   return (
     <>
       <View style={styles.homeSectionHeader}>
-        <Text style={styles.sectionTitle}>{recapTitle}</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{recapTitle}</Text>
       </View>
       <View style={styles.monthStatsRow}>
-        <View style={styles.monthStatCard}>
-          <Text style={styles.monthStatValue}>{entryCount}</Text>
-          <Text style={styles.monthStatLabel}>Entries</Text>
+        <View style={[styles.monthStatCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.monthStatValue, { color: colors.text }]}>{entryCount}</Text>
+          <Text style={[styles.monthStatLabel, { color: colors.mutedText }]}>Entries</Text>
         </View>
-        <View style={styles.monthStatCard}>
-          <Text style={styles.monthStatValue}>
+        <View style={[styles.monthStatCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.monthStatValue, { color: colors.text }]}>
             {averageRating == null ? '-' : `${getRatingEmoji(Math.round(averageRating))} ${averageRating.toFixed(1)}`}
           </Text>
-          <Text style={styles.monthStatLabel}>Avg Comfort</Text>
+          <Text style={[styles.monthStatLabel, { color: colors.mutedText }]}>Avg Comfort</Text>
         </View>
-        <View style={styles.monthStatCard}>
-          <Text style={styles.monthStatValue}>{thirdStatValue}</Text>
-          <Text style={styles.monthStatLabel}>{thirdStatLabel}</Text>
+        <View style={[styles.monthStatCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.monthStatValue, { color: colors.text }]}>{thirdStatValue}</Text>
+          <Text style={[styles.monthStatLabel, { color: colors.mutedText }]}>{thirdStatLabel}</Text>
         </View>
-        <View style={styles.monthStatCard}>
-          <Text style={styles.monthStatValue}>{averageBristol == null ? '-' : averageBristol.toFixed(1)}</Text>
-          <Text style={styles.monthStatLabel}>Avg Bristol</Text>
+        <View style={[styles.monthStatCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.monthStatValue, { color: colors.text }]}>{averageBristol == null ? '-' : averageBristol.toFixed(1)}</Text>
+          <Text style={[styles.monthStatLabel, { color: colors.mutedText }]}>Avg Bristol</Text>
         </View>
       </View>
-      <View style={styles.monthTipCard}>
-        <Text style={styles.monthTipTitle}>Tip</Text>
-        <Text style={styles.monthTipText}>{tipText}</Text>
+      <View style={[styles.monthTipCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.monthTipTitle, { color: colors.text }]}>Tip</Text>
+        <Text style={[styles.monthTipText, { color: colors.mutedText }]}>{tipText}</Text>
       </View>
       {showSelectedEntries ? (
         <Animated.View
@@ -108,19 +112,19 @@ export function MonthOverviewSection(props: Props) {
           }}
           pointerEvents={hasSelection ? 'auto' : 'none'}
         >
-          <View style={styles.selectedDayEntriesCard}>
-          <Text style={styles.selectedDayEntriesTitle}>Entries on this date</Text>
+          <View style={[styles.selectedDayEntriesCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.selectedDayEntriesTitle, { color: colors.text }]}>Entries on this date</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectedDayEntriesRail}>
             {selectedDateEntries.map((entry) => (
-              <View key={`selected-day-entry-${entry.id}`} style={styles.selectedDayEntryItem}>
+              <View key={`selected-day-entry-${entry.id}`} style={[styles.selectedDayEntryItem, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
                 <View style={styles.selectedDayEntryTop}>
-                  <BristolTypeChip typeValue={Number(entry.bristolType)} />
-                  <Text style={styles.selectedDayEntryTime}>{formatEntryTimestamp(entry.occurredAt)}</Text>
+                  <BristolTypeChip typeValue={Number(entry.bristolType)} themeMode={themeMode} />
+                  <Text style={[styles.selectedDayEntryTime, { color: colors.mutedText }]}>{formatEntryTimestamp(entry.occurredAt)}</Text>
                 </View>
-                <Text style={[styles.selectedDayEntryRating, { color: getRatingColor(Number(entry.rating)) }]}>
+                <Text style={[styles.selectedDayEntryRating, { color: getRatingColor(Number(entry.rating), themeMode) }]}>
                   {getRatingEmoji(Number(entry.rating))} {getRatingEmotion(Number(entry.rating))}
                 </Text>
-                <Text style={styles.selectedDayEntryNote} numberOfLines={2}>
+                <Text style={[styles.selectedDayEntryNote, { color: colors.mutedText }]} numberOfLines={2}>
                   {entry.note?.trim() || 'No note'}
                 </Text>
               </View>
@@ -130,27 +134,37 @@ export function MonthOverviewSection(props: Props) {
         </Animated.View>
       ) : null}
 
-      <View style={styles.calendarCard}>
+      <View style={[styles.calendarCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.calendarHeader}>
           <TouchableOpacity
-            style={[styles.iconButton, styles.iconButtonGhost, styles.calendarMonthButton]}
+            style={[
+              styles.iconButton,
+              styles.iconButtonGhost,
+              styles.calendarMonthButton,
+              { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+            ]}
             onPress={onPrevMonth}
             accessibilityLabel="Previous month"
           >
-            <Ionicons name="chevron-back" size={18} color="#f0f6fc" />
+            <Ionicons name="chevron-back" size={18} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.calendarTitle}>{monthLabel}</Text>
+          <Text style={[styles.calendarTitle, { color: colors.text }]}>{monthLabel}</Text>
           <TouchableOpacity
-            style={[styles.iconButton, styles.iconButtonGhost, styles.calendarMonthButton]}
+            style={[
+              styles.iconButton,
+              styles.iconButtonGhost,
+              styles.calendarMonthButton,
+              { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+            ]}
             onPress={onNextMonth}
             accessibilityLabel="Next month"
           >
-            <Ionicons name="chevron-forward" size={18} color="#f0f6fc" />
+            <Ionicons name="chevron-forward" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
         <View style={styles.calendarWeekRow}>
           {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, index) => (
-            <Text key={`weekday-${label}-${index}`} style={styles.calendarWeekday}>
+            <Text key={`weekday-${label}-${index}`} style={[styles.calendarWeekday, { color: colors.mutedText }]}>
               {label}
             </Text>
           ))}
@@ -162,25 +176,53 @@ export function MonthOverviewSection(props: Props) {
               onPress={() => onSelectDate(cell.dateKey)}
               style={[
                 styles.calendarCell,
-                cell.inCurrentMonth && cell.rating != null ? getRatingDayStyle(cell.rating) : null,
-                !cell.inCurrentMonth ? styles.calendarCellOutside : null,
+                {
+                  backgroundColor: themeMode === 'light' ? '#ffffff' : '#161b22',
+                  borderColor: colors.border,
+                },
+                cell.inCurrentMonth && cell.rating != null ? getRatingDayStyle(cell.rating, themeMode) : null,
+                !cell.inCurrentMonth
+                  ? [
+                      styles.calendarCellOutside,
+                      {
+                        borderColor: themeMode === 'light' ? '#d7dee8' : '#1f2937',
+                        backgroundColor: themeMode === 'light' ? '#f4f7fb' : '#0f141b',
+                        opacity: themeMode === 'light' ? 1 : 0.7,
+                      },
+                    ]
+                  : null,
                 cell.inCurrentMonth && cell.isToday ? styles.calendarCellToday : null,
-                selectedDateKey === cell.dateKey ? styles.calendarCellSelected : null,
+                selectedDateKey === cell.dateKey
+                  ? [
+                      styles.calendarCellSelected,
+                      { borderColor: themeMode === 'light' ? '#2d74da' : '#f0f6fc' },
+                    ]
+                  : null,
               ]}
             >
               {cell.entryCount >= 2 ? (
                 <View style={[styles.calendarEntryMarkerRow, !cell.inCurrentMonth ? styles.calendarEntryDotOutside : null]}>
                   {Array.from({ length: Math.min(3, cell.entryCount) }).map((_, dotIndex) => (
-                    <View key={`dot-${index}-${dotIndex}`} style={styles.calendarEntryDot} />
+                    <View
+                      key={`dot-${index}-${dotIndex}`}
+                      style={[
+                        styles.calendarEntryDot,
+                        { backgroundColor: themeMode === 'light' ? '#7a8698' : '#c9d1d9' },
+                      ]}
+                    />
                   ))}
-                  {cell.entryCount > 3 ? <Text style={styles.calendarEntryPlus}>+</Text> : null}
+                  {cell.entryCount > 3 ? <Text style={[styles.calendarEntryPlus, { color: themeMode === 'light' ? '#6f7c8f' : '#c9d1d9' }]}>+</Text> : null}
                 </View>
               ) : null}
               <Text
                 style={[
                   styles.calendarCellText,
-                  !cell.inCurrentMonth ? styles.calendarCellTextOutside : null,
-                  cell.inCurrentMonth && cell.isToday ? styles.calendarCellTextToday : null,
+                  { color: colors.text },
+                  !cell.inCurrentMonth ? [styles.calendarCellTextOutside, { color: colors.mutedText }] : null,
+                  cell.inCurrentMonth && cell.isToday
+                    ? [styles.calendarCellTextToday, { color: themeMode === 'light' ? '#184f9f' : undefined }]
+                    : null,
+                  selectedDateKey === cell.dateKey && themeMode === 'light' ? { color: '#1a4f9f' } : null,
                 ]}
               >
                 {cell.day}
@@ -191,8 +233,8 @@ export function MonthOverviewSection(props: Props) {
         <View style={styles.calendarLegendRow}>
           {[1, 2, 3, 4, 5].map((level) => (
             <View key={`legend-${level}`} style={styles.calendarLegendItem}>
-              <View style={[styles.calendarLegendSwatch, getRatingDayStyle(level)]} />
-              <Text style={styles.calendarLegendText}>{level}</Text>
+              <View style={[styles.calendarLegendSwatch, getRatingDayStyle(level, themeMode)]} />
+              <Text style={[styles.calendarLegendText, { color: colors.mutedText }]}>{level}</Text>
             </View>
           ))}
         </View>

@@ -22,6 +22,7 @@ import type {
   Profile,
 } from '../types/domain';
 import { styles } from './styles';
+import { getThemePalette, type ThemeMode } from '../theme';
 import { HomeMapSection } from './home/components/HomeMapSection';
 import { EntryComposerModal } from './home/components/EntryComposerModal';
 import { ProfileAvatar } from '../components/ProfileAvatar';
@@ -29,6 +30,7 @@ import { BristolTypeChip } from './home/components/EntryVisuals';
 import { formatDateInput, formatEntryTimestamp, formatTimeInput, getRatingEmoji, getRatingEmotion } from './home/utils';
 
 type Props = {
+  themeMode: ThemeMode;
   currentUserId: string;
   feedItems: FeedItem[];
   profilesById: Record<string, Profile>;
@@ -73,6 +75,7 @@ type Props = {
 
 export function HomeScreen(props: Props) {
   const {
+    themeMode,
     currentUserId,
     feedItems,
     profilesById,
@@ -114,6 +117,7 @@ export function HomeScreen(props: Props) {
     onSendFriendRequest,
     onAcceptRequest,
   } = props;
+  const colors = getThemePalette(themeMode);
 
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [selectedFeedEntryId, setSelectedFeedEntryId] = useState<string | null>(null);
@@ -216,6 +220,7 @@ export function HomeScreen(props: Props) {
         ) : null}
 
         <HomeMapSection
+          themeMode={themeMode}
           entries={todayMapEntries}
           currentUserId={currentUserId}
           selectedEntryId={selectedFeedEntryId}
@@ -236,16 +241,20 @@ export function HomeScreen(props: Props) {
       </View>
 
       <Modal transparent visible={showFriendsModal} animationType="fade" onRequestClose={() => setShowFriendsModal(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowFriendsModal(false)}>
-          <Pressable style={[styles.modalCard, styles.socialModalCard]} onPress={() => {}}>
-            <Text style={styles.cardTitle}>Friends</Text>
+        <Pressable style={[styles.modalBackdrop, { backgroundColor: colors.overlay }]} onPress={() => setShowFriendsModal(false)}>
+          <Pressable style={[styles.modalCard, styles.socialModalCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => {}}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Friends</Text>
             <View style={styles.feedCommentComposerRow}>
               <TextInput
-                style={[styles.input, styles.feedCommentInput]}
+                style={[
+                  styles.input,
+                  styles.feedCommentInput,
+                  { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text },
+                ]}
                 value={friendUsername}
                 onChangeText={onFriendUsernameChange}
                 placeholder="username"
-                placeholderTextColor="#8b949e"
+                placeholderTextColor={colors.mutedText}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
@@ -269,24 +278,28 @@ export function HomeScreen(props: Props) {
 
             {incomingRequests.length > 0 ? (
               <>
-                <Text style={styles.sectionTitle}>Incoming Requests</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Incoming Requests</Text>
                 <ScrollView style={{ maxHeight: 220 }}>
                   {incomingRequests.map((request) => {
                     const isAccepting = acceptingRequestIds.includes(request.id);
                     return (
-                      <View key={request.id} style={styles.card}>
+                      <View key={request.id} style={[styles.card, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
                         <View style={styles.inlineRow}>
                           <ProfileAvatar
                             size={28}
                             avatarUrl={request.from.avatarUrl}
                             avatarTint={request.from.avatarTint}
                           />
-                          <Text style={[styles.cardTitle, styles.inlineLeft]}>
+                          <Text style={[styles.cardTitle, styles.inlineLeft, { color: colors.text }]}>
                             {request.from.displayName} (@{request.from.username})
                           </Text>
                         </View>
                         <TouchableOpacity
-                          style={[styles.buttonSecondary, isAccepting && styles.buttonDisabled]}
+                          style={[
+                            styles.buttonSecondary,
+                            { backgroundColor: colors.primary, borderColor: colors.primaryBorder, borderWidth: 1 },
+                            isAccepting && styles.buttonDisabled,
+                          ]}
                           onPress={() => onAcceptRequest(request.id)}
                           disabled={isAccepting}
                         >
@@ -299,22 +312,22 @@ export function HomeScreen(props: Props) {
               </>
             ) : null}
 
-            <Text style={styles.sectionTitle}>Your Friends</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Friends</Text>
             <ScrollView style={{ maxHeight: 180 }}>
               {friends.map((friend) => (
-                <View key={friend.id} style={styles.card}>
+                <View key={friend.id} style={[styles.card, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
                   <View style={styles.inlineRow}>
                     <ProfileAvatar size={28} avatarUrl={friend.avatarUrl} avatarTint={friend.avatarTint} />
-                    <Text style={[styles.cardTitle, styles.inlineLeft]}>
+                    <Text style={[styles.cardTitle, styles.inlineLeft, { color: colors.text }]}>
                       {friend.displayName} (@{friend.username})
                     </Text>
                   </View>
                 </View>
               ))}
-              {friends.length === 0 ? <Text style={styles.muted}>No accepted friends yet.</Text> : null}
+              {friends.length === 0 ? <Text style={[styles.muted, { color: colors.mutedText }]}>No accepted friends yet.</Text> : null}
             </ScrollView>
 
-            {!!friendStatus ? <Text style={styles.muted}>{friendStatus}</Text> : null}
+            {!!friendStatus ? <Text style={[styles.muted, { color: colors.mutedText }]}>{friendStatus}</Text> : null}
             {!!friendError ? <Text style={styles.error}>{friendError}</Text> : null}
           </Pressable>
         </Pressable>
@@ -329,13 +342,24 @@ export function HomeScreen(props: Props) {
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             pointerEvents="box-none"
           >
-            <Pressable style={[styles.commentsDrawerSheet, { height: '72%', marginBottom: Platform.OS === 'ios' ? 0 : keyboardOffset }]} onPress={() => {}}>
+          <Pressable
+            style={[
+              styles.commentsDrawerSheet,
+              {
+                height: '72%',
+                marginBottom: Platform.OS === 'ios' ? 0 : keyboardOffset,
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={() => {}}
+          >
               {selectedFeedItem ? (
                 <>
                   <View style={styles.commentsDrawerHandleWrap}>
-                    <View style={styles.commentsDrawerHandle} />
+                    <View style={[styles.commentsDrawerHandle, { backgroundColor: colors.mutedText }]} />
                   </View>
-                  <View style={styles.card}>
+                  <View style={[styles.card, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
                     <View style={styles.feedHeaderRow}>
                       <View style={styles.feedIdentityWrap}>
                         <ProfileAvatar
@@ -344,18 +368,20 @@ export function HomeScreen(props: Props) {
                           avatarTint={profilesById[selectedFeedItem.subjectId]?.avatarTint ?? '#5b6c8a'}
                         />
                         <View style={styles.inlineLeft}>
-                          <Text style={styles.cardTitle}>{selectedFeedItem.displayName}</Text>
-                          <Text style={styles.feedMetaTime}>{formatEntryTimestamp(selectedFeedItem.occurredAt)}</Text>
+                          <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedFeedItem.displayName}</Text>
+                          <Text style={[styles.feedMetaTime, { color: colors.mutedText }]}>{formatEntryTimestamp(selectedFeedItem.occurredAt)}</Text>
                         </View>
                       </View>
                       <View style={styles.feedStatsColumn}>
                         <Text style={styles.feedMetaInline}>
                           {getRatingEmoji(selectedFeedItem.rating)} {getRatingEmotion(selectedFeedItem.rating)}
                         </Text>
-                        <BristolTypeChip typeValue={selectedFeedItem.bristolType} />
+                        <BristolTypeChip typeValue={selectedFeedItem.bristolType} themeMode={themeMode} />
                       </View>
                     </View>
-                    <Text style={styles.muted}>{selectedComments.length} comment{selectedComments.length === 1 ? '' : 's'}</Text>
+                    <Text style={[styles.muted, { color: colors.mutedText }]}>
+                      {selectedComments.length} comment{selectedComments.length === 1 ? '' : 's'}
+                    </Text>
                   </View>
 
                   <ScrollView
@@ -367,21 +393,25 @@ export function HomeScreen(props: Props) {
                       <View key={comment.id} style={styles.feedCommentRow}>
                         <ProfileAvatar size={24} avatarUrl={comment.avatarUrl} avatarTint={comment.avatarTint} />
                         <View style={styles.feedCommentBodyWrap}>
-                          <Text style={styles.feedCommentAuthor}>{comment.displayName}</Text>
-                          <Text style={styles.feedCommentText}>{comment.body}</Text>
-                          <Text style={styles.feedCommentTime}>{formatEntryTimestamp(comment.createdAt)}</Text>
+                          <Text style={[styles.feedCommentAuthor, { color: colors.text }]}>{comment.displayName}</Text>
+                          <Text style={[styles.feedCommentText, { color: colors.text }]}>{comment.body}</Text>
+                          <Text style={[styles.feedCommentTime, { color: colors.mutedText }]}>{formatEntryTimestamp(comment.createdAt)}</Text>
                         </View>
                       </View>
                     ))}
-                    {selectedComments.length === 0 ? <Text style={styles.muted}>No comments yet.</Text> : null}
+                    {selectedComments.length === 0 ? <Text style={[styles.muted, { color: colors.mutedText }]}>No comments yet.</Text> : null}
                   </ScrollView>
 
                   <View style={[styles.commentsSheetComposerRow, { marginBottom: Platform.OS === 'ios' ? 6 : 0 }]}>
                     <TextInput
                       ref={commentInputRef}
-                      style={[styles.input, styles.feedCommentInput]}
+                      style={[
+                        styles.input,
+                        styles.feedCommentInput,
+                        { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border },
+                      ]}
                       placeholder="Write a comment"
-                      placeholderTextColor="#8b949e"
+                      placeholderTextColor={colors.mutedText}
                       value={feedCommentDraftByEntry[selectedFeedItem.entryId] ?? ''}
                       onChangeText={(value) => onFeedCommentDraftChange(selectedFeedItem.entryId, value)}
                     />
@@ -409,6 +439,7 @@ export function HomeScreen(props: Props) {
       </Modal>
 
       <EntryComposerModal
+        themeMode={themeMode}
         visible={showEntryComposer}
         addEntryLoading={addEntryLoading}
         isEditingEntry={isEditingEntry}

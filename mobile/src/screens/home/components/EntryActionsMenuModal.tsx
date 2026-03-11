@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Modal, Pressable, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import type { PoopEntry } from '../../../types/domain';
 import { styles } from '../../styles';
+import { BottomDrawer } from '../../../components/BottomDrawer';
+import { getThemePalette, type ThemeMode } from '../../../theme';
 
 type Props = {
+  themeMode: ThemeMode;
   visible: boolean;
-  menuLeft: number;
-  menuTop: number;
-  menuWidth: number;
   entries: PoopEntry[];
   entryMenuId: string | null;
   deletingEntryIds: string[];
@@ -18,10 +18,8 @@ type Props = {
 
 export function EntryActionsMenuModal(props: Props) {
   const {
+    themeMode,
     visible,
-    menuLeft,
-    menuTop,
-    menuWidth,
     entries,
     entryMenuId,
     deletingEntryIds,
@@ -29,29 +27,31 @@ export function EntryActionsMenuModal(props: Props) {
     onEditEntry,
     onDeleteEntry,
   } = props;
+  const colors = getThemePalette(themeMode);
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.entryMenuBackdrop} onPress={onClose}>
-        <Pressable style={[styles.entryInlineMenu, { top: menuTop, left: menuLeft, width: menuWidth }]} onPress={() => {}}>
+    <BottomDrawer visible={visible} onClose={onClose} height={190} maxHeight={220} themeMode={themeMode}>
+      <View style={styles.entryActionDrawerContent}>
+        <Text style={[styles.entryActionDrawerTitle, { color: colors.text }]}>Entry Actions</Text>
+        <View style={styles.entryActionDrawerRow}>
           <TouchableOpacity
-            style={[styles.buttonSecondary, styles.entryInlineMenuAction]}
+            style={[styles.entryActionDrawerButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
             onPress={() => {
               const selected = entries.find((entry) => entry.id === entryMenuId);
               if (!selected) return;
               onEditEntry(selected);
               onClose();
             }}
+            accessibilityLabel="Edit entry"
           >
-            <View style={styles.buttonContentRow}>
-              <Ionicons name="create-outline" size={14} color="#fff" />
-              <Text style={styles.buttonText}>Edit</Text>
-            </View>
+            <Ionicons name="create-outline" size={20} color={themeMode === 'light' ? '#2d74da' : '#9ecbff'} />
+            <Text style={[styles.entryActionDrawerButtonText, { color: colors.text }]}>Edit</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
-              styles.buttonDangerInline,
-              styles.entryInlineMenuAction,
+              styles.entryActionDrawerButton,
+              { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+              styles.entryActionDrawerButtonDanger,
               entryMenuId && deletingEntryIds.includes(entryMenuId) && styles.buttonDisabled,
             ]}
             disabled={!entryMenuId || deletingEntryIds.includes(entryMenuId)}
@@ -60,18 +60,19 @@ export function EntryActionsMenuModal(props: Props) {
               onDeleteEntry(entryMenuId);
               onClose();
             }}
+            accessibilityLabel="Delete entry"
           >
-            <View style={styles.buttonContentRow}>
-              {entryMenuId && deletingEntryIds.includes(entryMenuId) ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Ionicons name="trash-outline" size={14} color="#fff" />
-              )}
-              <Text style={styles.buttonText}>{entryMenuId && deletingEntryIds.includes(entryMenuId) ? 'Deleting...' : 'Delete'}</Text>
-            </View>
+            {entryMenuId && deletingEntryIds.includes(entryMenuId) ? (
+              <ActivityIndicator size="small" color="#ff7b72" />
+            ) : (
+              <Ionicons name="trash-outline" size={20} color="#ffb3ad" />
+            )}
+            <Text style={[styles.entryActionDrawerButtonText, styles.entryActionDrawerButtonTextDanger]}>
+              {entryMenuId && deletingEntryIds.includes(entryMenuId) ? 'Deleting…' : 'Delete'}
+            </Text>
           </TouchableOpacity>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </View>
+      </View>
+    </BottomDrawer>
   );
 }

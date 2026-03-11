@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import type { LeaderboardRow, Profile } from '../types/domain';
 import { styles } from './styles';
+import { getThemePalette } from '../theme';
 
 type Props = {
   email?: string;
   profile: Profile;
+  themeMode: 'dark' | 'light';
   error: string;
   currentYear: number;
   previousYear: number;
@@ -25,12 +28,14 @@ type Props = {
   onUploadAvatar: () => void;
   avatarUploading: boolean;
   signingOut: boolean;
+  onToggleThemeMode: () => void;
   onSignOut: () => void;
 };
 
 export function AccountScreen({
   email,
   profile,
+  themeMode,
   error,
   currentYear,
   previousYear,
@@ -48,12 +53,20 @@ export function AccountScreen({
   onUploadAvatar,
   avatarUploading,
   signingOut,
+  onToggleThemeMode,
   onSignOut,
 }: Props) {
+  const insets = useSafeAreaInsets();
+  const colors = getThemePalette(themeMode);
+  const neutralButtonTextColor = colors.text;
+  const dangerButtonTextColor = themeMode === 'light' ? '#7c1d1d' : '#ffffff';
+  const switchTrackColor = themeMode === 'light' ? { false: '#cfd8e3', true: '#9fc2fa' } : { false: '#2f3742', true: '#2d74da' };
+  const switchThumbColor = themeMode === 'light' ? '#ffffff' : '#f0f6fc';
   const [pullDistance, setPullDistance] = useState(0);
   return (
     <ScrollView
-      contentContainerStyle={styles.screen}
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={[styles.screen, { paddingTop: Math.max(12, insets.top + 8), backgroundColor: colors.background }]}
       onScroll={(event) => {
         const y = event.nativeEvent.contentOffset.y;
         setPullDistance(Math.max(0, Math.min(72, -y)));
@@ -71,7 +84,7 @@ export function AccountScreen({
         <RefreshControl
           refreshing={leaderboardLoading}
           onRefresh={onRefreshLeaderboard}
-          tintColor="#f0f6fc"
+          tintColor={colors.text}
           progressViewOffset={0}
         />
       }
@@ -79,113 +92,161 @@ export function AccountScreen({
       {leaderboardLoading || pullDistance > 0 ? (
         <View style={[styles.refreshGapIndicator, { height: leaderboardLoading ? 48 : pullDistance }]}>
           {!leaderboardLoading ? (
-            <Text style={[styles.refreshHint, { opacity: Math.min(1, pullDistance / 42) }]}>Pull to refresh</Text>
+            <Text style={[styles.refreshHint, { color: colors.mutedText, opacity: Math.min(1, pullDistance / 42) }]}>Pull to refresh</Text>
           ) : null}
-          {leaderboardLoading ? <ActivityIndicator size="small" color="#f0f6fc" /> : null}
+          {leaderboardLoading ? <ActivityIndicator size="small" color={colors.text} /> : null}
         </View>
       ) : null}
-      <Text style={styles.title}>Account</Text>
-      <Text style={styles.muted}>{email ?? 'No email on file'}</Text>
+      <Text style={[styles.title, { color: colors.text, marginTop: 0 }]}>Account</Text>
       <View style={styles.profileHeader}>
         <ProfileAvatar avatarUrl={profile.avatarUrl} avatarTint={profile.avatarTint} />
         <View style={styles.profileHeaderText}>
-          <Text style={styles.muted}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>
             {profile.displayName} (@{profile.username})
           </Text>
+          <Text style={[styles.muted, { color: colors.mutedText }]}>{email ?? 'No email on file'}</Text>
           <TouchableOpacity
-            style={[styles.buttonSecondary, avatarUploading && styles.buttonDisabled]}
+            style={[
+              styles.appActionButtonSecondary,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              avatarUploading && styles.buttonDisabled,
+            ]}
             onPress={onUploadAvatar}
             disabled={avatarUploading}
           >
             <View style={styles.buttonContentRow}>
-              {avatarUploading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="image" size={16} color="#fff" />}
-              <Text style={styles.buttonText}>{avatarUploading ? 'Uploading...' : 'Upload Photo'}</Text>
+              {avatarUploading ? <ActivityIndicator size="small" color={neutralButtonTextColor} /> : <Ionicons name="image" size={16} color={neutralButtonTextColor} />}
+              <Text style={[styles.buttonText, { color: neutralButtonTextColor }]}>{avatarUploading ? 'Uploading...' : 'Photo'}</Text>
             </View>
           </TouchableOpacity>
         </View>
       </View>
-      <Text style={styles.label}>Feed Visibility</Text>
-      <Text style={styles.muted}>
-        {profile.shareFeed ? 'Friends can see your entries in feed.' : 'Your entries are hidden from friend feed.'}
-      </Text>
-      <TouchableOpacity
-        style={[styles.buttonSecondary, toggleShareFeedLoading && styles.buttonDisabled]}
-        onPress={onToggleShareFeed}
-        disabled={toggleShareFeedLoading}
-      >
-        <View style={styles.buttonContentRow}>
-          {toggleShareFeedLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Ionicons name={profile.shareFeed ? 'eye-off' : 'eye'} size={16} color="#fff" />
-          )}
-          <Text style={styles.buttonText}>
-            {toggleShareFeedLoading
-              ? 'Updating...'
-              : profile.shareFeed
-                ? 'Hide My Feed Activity'
-                : 'Share My Feed Activity'}
-          </Text>
+
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.inlineRow}>
+          <View style={styles.inlineLeft}>
+            <Text style={[styles.label, { color: colors.text, marginBottom: 0 }]}>Dark Mode</Text>
+          </View>
+          <Switch
+            value={themeMode === 'dark'}
+            onValueChange={onToggleThemeMode}
+            trackColor={switchTrackColor}
+            thumbColor={switchThumbColor}
+            ios_backgroundColor={switchTrackColor.false}
+          />
         </View>
-      </TouchableOpacity>
-      <Text style={styles.sectionTitle}>Your Ranking</Text>
-      <Text style={styles.muted}>
-        {currentYear}: {currentYearRank ? `#${currentYearRank}` : 'Unranked'}
-      </Text>
-      <Text style={styles.muted}>
-        {previousYear}: {previousYearRank ? `#${previousYearRank}` : 'Unranked'}
-      </Text>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.inlineRow}>
+          <View style={styles.inlineLeft}>
+            <Text style={[styles.label, { color: colors.text, marginBottom: 0 }]}>Share Feed</Text>
+          </View>
+          {toggleShareFeedLoading ? (
+            <ActivityIndicator size="small" color={neutralButtonTextColor} />
+          ) : (
+            <Switch
+              value={profile.shareFeed}
+              onValueChange={onToggleShareFeed}
+              trackColor={switchTrackColor}
+              thumbColor={switchThumbColor}
+              ios_backgroundColor={switchTrackColor.false}
+            />
+          )}
+        </View>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.label, { color: colors.text }]}>Rank</Text>
+        <Text style={[styles.muted, { color: colors.mutedText }]}>
+          {currentYear}: {currentYearRank ? `#${currentYearRank}` : '—'}  |  {previousYear}: {previousYearRank ? `#${previousYearRank}` : '—'}
+        </Text>
+      </View>
 
       <View style={styles.row}>
         <TouchableOpacity
           style={[
             styles.buttonSecondary,
+            { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
             selectedLeaderboardYear === currentYear && styles.segmentButtonActive,
             leaderboardLoading && styles.buttonDisabled,
           ]}
           onPress={() => onSelectLeaderboardYear(currentYear)}
           disabled={leaderboardLoading}
         >
-          <Text style={styles.buttonText}>{currentYear}</Text>
+          <Text
+            style={[
+              styles.buttonText,
+              {
+                color: selectedLeaderboardYear === currentYear ? '#ffffff' : neutralButtonTextColor,
+              },
+            ]}
+          >
+            {currentYear}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
             styles.buttonSecondary,
+            { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
             selectedLeaderboardYear === previousYear && styles.segmentButtonActive,
             leaderboardLoading && styles.buttonDisabled,
           ]}
           onPress={() => onSelectLeaderboardYear(previousYear)}
           disabled={leaderboardLoading}
         >
-          <Text style={styles.buttonText}>{previousYear}</Text>
+          <Text
+            style={[
+              styles.buttonText,
+              {
+                color: selectedLeaderboardYear === previousYear ? '#ffffff' : neutralButtonTextColor,
+              },
+            ]}
+          >
+            {previousYear}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {leaderboardLoading && <Text style={styles.muted}>Loading leaderboard...</Text>}
+      {leaderboardLoading && <Text style={[styles.muted, { color: colors.mutedText }]}>Loading leaderboard...</Text>}
       {!!leaderboardError && <Text style={styles.error}>{leaderboardError}</Text>}
       {leaderboardRows.map((row) => (
-        <View key={row.subjectId} style={styles.card}>
+        <View key={row.subjectId} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.inlineRow}>
             <ProfileAvatar
               size={32}
               avatarUrl={profilesById[row.subjectId]?.avatarUrl ?? null}
               avatarTint={profilesById[row.subjectId]?.avatarTint ?? '#5b6c8a'}
             />
-            <Text style={[styles.cardTitle, styles.inlineLeft]}>
+            <Text style={[styles.cardTitle, styles.inlineLeft, { color: colors.text }]}>
               #{row.rank} {row.displayName} (@{row.username})
             </Text>
           </View>
-          <Text style={styles.muted}>
+          <Text style={[styles.muted, { color: colors.mutedText }]}>
             Score {row.score} | Avg {row.avgRating.toFixed(2)}
           </Text>
         </View>
       ))}
-      {leaderboardRows.length === 0 && !leaderboardLoading && <Text style={styles.muted}>No leaderboard rows.</Text>}
+      {leaderboardRows.length === 0 && !leaderboardLoading && (
+        <Text style={[styles.muted, { color: colors.mutedText }]}>No leaderboard rows.</Text>
+      )}
       {!!error && <Text style={styles.error}>{error}</Text>}
-      <TouchableOpacity style={[styles.buttonDanger, signingOut && styles.buttonDisabled]} onPress={onSignOut} disabled={signingOut}>
+      <TouchableOpacity
+        style={[
+          styles.appActionButtonDanger,
+          { backgroundColor: colors.danger, borderColor: colors.dangerBorder },
+          signingOut && styles.buttonDisabled,
+        ]}
+        onPress={onSignOut}
+        disabled={signingOut}
+      >
         <View style={styles.buttonContentRow}>
-          {signingOut ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="log-out-outline" size={16} color="#fff" />}
-          <Text style={styles.buttonText}>{signingOut ? 'Signing Out...' : 'Sign Out'}</Text>
+          {signingOut ? (
+            <ActivityIndicator size="small" color={dangerButtonTextColor} />
+          ) : (
+            <Ionicons name="log-out-outline" size={16} color={dangerButtonTextColor} />
+          )}
+          <Text style={[styles.buttonText, { color: dangerButtonTextColor }]}>{signingOut ? 'Signing Out...' : 'Sign Out'}</Text>
         </View>
       </TouchableOpacity>
     </ScrollView>

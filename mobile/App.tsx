@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -14,13 +15,18 @@ import { useAppController } from './src/hooks/useAppController';
 
 export default function App() {
   const app = useAppController();
+  const isLightMode = app.themeMode === 'light';
+  const appRootStyle = [styles.root, isLightMode ? styles.rootLight : null];
+  const appContentStyle = [styles.contentWithTabIsland, isLightMode ? styles.contentWithTabIslandLight : null];
+  const statusBarStyle = isLightMode ? 'dark' : 'light';
 
   if (!app.session) {
     return (
-      <GestureHandlerRootView style={styles.root}>
-        <View style={styles.root}>
-          <StatusBar style="auto" />
+      <GestureHandlerRootView style={appRootStyle}>
+        <View style={appRootStyle}>
+          <StatusBar style={statusBarStyle} />
           <AuthScreen
+            themeMode={app.themeMode}
             authMethod={app.authMethod}
             setAuthMethod={app.setAuthMethod}
             authPhone={app.authPhone}
@@ -49,10 +55,10 @@ export default function App() {
 
   if (app.profileLoading) {
     return (
-      <GestureHandlerRootView style={styles.root}>
-        <View style={styles.root}>
-          <StatusBar style="auto" />
-          <LoadingScreen />
+      <GestureHandlerRootView style={appRootStyle}>
+        <View style={appRootStyle}>
+          <StatusBar style={statusBarStyle} />
+          <LoadingScreen themeMode={app.themeMode} />
         </View>
       </GestureHandlerRootView>
     );
@@ -60,10 +66,11 @@ export default function App() {
 
   if (!app.myProfile) {
     return (
-      <GestureHandlerRootView style={styles.root}>
-        <View style={styles.root}>
-          <StatusBar style="auto" />
+      <GestureHandlerRootView style={appRootStyle}>
+        <View style={appRootStyle}>
+          <StatusBar style={statusBarStyle} />
           <OnboardingScreen
+            themeMode={app.themeMode}
             username={app.onboardingUsername}
             displayName={app.onboardingDisplayName}
             error={app.profileError}
@@ -80,6 +87,7 @@ export default function App() {
   }
 
   const homeProps = {
+    themeMode: app.themeMode,
     currentUserId: app.currentUserId,
     entries: app.entries,
     feedItems: app.feedItems,
@@ -127,17 +135,34 @@ export default function App() {
   };
 
   const overviewProps = {
+    themeMode: app.themeMode,
     entries: app.entries,
     loadingEntries: app.loadingEntries,
     entryError: app.entryError,
     deletingEntryIds: app.deletingEntryIds,
+    addEntryLoading: app.addEntryLoading,
+    isEditingEntry: Boolean(app.editingEntryId),
+    showEntryComposer: app.showEntryComposer,
+    bristolType: app.bristolType,
+    rating: app.rating,
+    note: app.note,
+    entryDate: app.entryDate,
+    entryTime: app.entryTime,
     onDeleteEntry: (entryId: string) => void app.handleDeleteEntry(entryId),
     onEditEntry: app.handleStartEditEntry,
+    onBristolTypeChange: app.setBristolType,
+    onRatingChange: app.setRating,
+    onNoteChange: app.setNote,
+    onEntryDateChange: app.setEntryDate,
+    onEntryTimeChange: app.setEntryTime,
+    onAddEntry: () => void app.handleAddEntry(),
+    onCloseComposer: app.closeEntryComposer,
   };
 
   const accountProps = {
     email: app.session.user.email,
     profile: app.myProfile,
+    themeMode: app.themeMode,
     error: app.profileError,
     currentYear: app.currentYear,
     previousYear: app.previousYear,
@@ -155,18 +180,21 @@ export default function App() {
     onUploadAvatar: () => void app.handleUploadAvatar(),
     avatarUploading: app.avatarUploading,
     signingOut: app.signingOut,
+    onToggleThemeMode: () => void app.handleToggleThemeMode(),
     onSignOut: () => void app.handleSignOut(),
   };
 
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <BottomSheetModalProvider>
-        <View style={styles.root}>
-          <StatusBar style="auto" />
-          <View style={styles.contentWithTabIsland}>
+    <GestureHandlerRootView style={appRootStyle}>
+      <SafeAreaProvider>
+        <BottomSheetModalProvider>
+          <View style={appRootStyle}>
+            <StatusBar style={statusBarStyle} />
+            <View style={appContentStyle}>
             <View
               style={[
                 styles.root,
+                isLightMode ? styles.rootLight : null,
                 {
                   position: 'absolute',
                   top: 0,
@@ -183,6 +211,7 @@ export default function App() {
             <View
               style={[
                 styles.root,
+                isLightMode ? styles.rootLight : null,
                 {
                   position: 'absolute',
                   top: 0,
@@ -199,6 +228,7 @@ export default function App() {
             <View
               style={[
                 styles.root,
+                isLightMode ? styles.rootLight : null,
                 {
                   position: 'absolute',
                   top: 0,
@@ -212,10 +242,11 @@ export default function App() {
             >
               <AccountScreen {...accountProps} />
             </View>
+            </View>
+            <TabBar tab={app.tab} onTabChange={app.setTab} themeMode={app.themeMode} />
           </View>
-          <TabBar tab={app.tab} onTabChange={app.setTab} />
-        </View>
-      </BottomSheetModalProvider>
+        </BottomSheetModalProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

@@ -1,10 +1,16 @@
 import { Text, View } from 'react-native';
 import { styles } from './styles';
+import { getThemePalette, type ThemeMode } from '../theme';
 
-export function LoadingScreen() {
+type Props = {
+  themeMode: ThemeMode;
+};
+
+export function LoadingScreen({ themeMode }: Props) {
+  const colors = getThemePalette(themeMode);
   return (
-    <View style={styles.screen}>
-      <Text style={styles.title}>Loading...</Text>
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Loading...</Text>
     </View>
   );
 }

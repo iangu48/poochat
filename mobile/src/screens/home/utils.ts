@@ -1,4 +1,5 @@
 import type { PoopEntry } from '../../types/domain';
+import type { ThemeMode } from '../../theme';
 
 export type CalendarCell = {
   day: number;
@@ -200,7 +201,23 @@ export function isCurrentMinute(value: Date): boolean {
   );
 }
 
-export function getRatingColor(value: number): string {
+export function getRatingColor(value: number, themeMode: ThemeMode = 'dark'): string {
+  if (themeMode === 'light') {
+    switch (Math.round(value)) {
+      case 1:
+        return '#c63b32';
+      case 2:
+        return '#c86a1a';
+      case 3:
+        return '#a37a00';
+      case 4:
+        return '#2f8a41';
+      case 5:
+        return '#1f7a34';
+      default:
+        return '#1b1f24';
+    }
+  }
   switch (Math.round(value)) {
     case 1:
       return '#ff7b72';
@@ -217,7 +234,23 @@ export function getRatingColor(value: number): string {
   }
 }
 
-export function getRatingCardStyle(value: number): { backgroundColor: string; borderColor: string } {
+export function getRatingCardStyle(value: number, themeMode: ThemeMode = 'dark'): { backgroundColor: string; borderColor: string } {
+  if (themeMode === 'light') {
+    switch (Math.round(value)) {
+      case 1:
+        return { backgroundColor: '#ffe5e3', borderColor: '#f29690' };
+      case 2:
+        return { backgroundColor: '#ffeddc', borderColor: '#f6b16f' };
+      case 3:
+        return { backgroundColor: '#fff4d8', borderColor: '#e5c46f' };
+      case 4:
+        return { backgroundColor: '#e7f6ea', borderColor: '#8ec99a' };
+      case 5:
+        return { backgroundColor: '#ddf2e3', borderColor: '#6fbd82' };
+      default:
+        return { backgroundColor: '#ffffff', borderColor: '#d0d8e3' };
+    }
+  }
   switch (Math.round(value)) {
     case 1:
       return { backgroundColor: '#331818', borderColor: '#ff7b72' };
@@ -234,7 +267,23 @@ export function getRatingCardStyle(value: number): { backgroundColor: string; bo
   }
 }
 
-export function getRatingDayStyle(value: number): { backgroundColor: string; borderColor: string } {
+export function getRatingDayStyle(value: number, themeMode: ThemeMode = 'dark'): { backgroundColor: string; borderColor: string } {
+  if (themeMode === 'light') {
+    switch (Math.round(value)) {
+      case 1:
+        return { backgroundColor: '#ffd7d4', borderColor: '#ef8b83' };
+      case 2:
+        return { backgroundColor: '#ffe7cf', borderColor: '#edaa63' };
+      case 3:
+        return { backgroundColor: '#ffefc7', borderColor: '#ddbe63' };
+      case 4:
+        return { backgroundColor: '#daf1df', borderColor: '#83c591' };
+      case 5:
+        return { backgroundColor: '#d0ecd8', borderColor: '#65b57a' };
+      default:
+        return { backgroundColor: '#ffffff', borderColor: '#d0d8e3' };
+    }
+  }
   switch (Math.round(value)) {
     case 1:
       return { backgroundColor: '#5a2424', borderColor: '#ff7b72' };
@@ -251,12 +300,40 @@ export function getRatingDayStyle(value: number): { backgroundColor: string; bor
   }
 }
 
-export function getRatingPillColors(value: number, selected: boolean): {
+export function getRatingPillColors(value: number, selected: boolean, themeMode: ThemeMode = 'dark'): {
   backgroundColor: string;
   borderColor: string;
   levelColor: string;
   labelColor: string;
 } {
+  if (themeMode === 'light') {
+    switch (Math.round(value)) {
+      case 1:
+        return selected
+          ? { backgroundColor: '#ffd7d4', borderColor: '#ef8b83', levelColor: '#8e241c', labelColor: '#8e241c' }
+          : { backgroundColor: '#fff0ee', borderColor: '#efb1ab', levelColor: '#c04f46', labelColor: '#b96a64' };
+      case 2:
+        return selected
+          ? { backgroundColor: '#ffe7cf', borderColor: '#edaa63', levelColor: '#8a4a12', labelColor: '#8a4a12' }
+          : { backgroundColor: '#fff4e8', borderColor: '#eec99f', levelColor: '#bd7a38', labelColor: '#b28355' };
+      case 3:
+        return selected
+          ? { backgroundColor: '#ffefc7', borderColor: '#ddbe63', levelColor: '#795d00', labelColor: '#795d00' }
+          : { backgroundColor: '#fff8e5', borderColor: '#e4cf95', levelColor: '#a8872a', labelColor: '#a08948' };
+      case 4:
+        return selected
+          ? { backgroundColor: '#daf1df', borderColor: '#83c591', levelColor: '#1f6a30', labelColor: '#1f6a30' }
+          : { backgroundColor: '#eef9f0', borderColor: '#abd8b4', levelColor: '#4a9d5d', labelColor: '#5b9166' };
+      case 5:
+        return selected
+          ? { backgroundColor: '#d0ecd8', borderColor: '#65b57a', levelColor: '#155c2a', labelColor: '#155c2a' }
+          : { backgroundColor: '#e7f7eb', borderColor: '#96d3a5', levelColor: '#368c4d', labelColor: '#4b8660' };
+      default:
+        return selected
+          ? { backgroundColor: '#e2ebfb', borderColor: '#80a9ef', levelColor: '#1b4ea3', labelColor: '#1b4ea3' }
+          : { backgroundColor: '#f7f9fc', borderColor: '#d0d8e3', levelColor: '#1b1f24', labelColor: '#5c6877' };
+    }
+  }
   switch (Math.round(value)) {
     case 1:
       return selected

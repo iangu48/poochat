@@ -3,6 +3,7 @@ import { Platform, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { PoopEntry } from '../../../types/domain';
 import { styles } from '../../styles';
+import { getThemePalette, type ThemeMode } from '../../../theme';
 import { clusterEntryLocations, getEntryLocations, getInitialRegion, type MapRegion } from '../mapUtils';
 
 const MapsLib = loadMapsLibrary();
@@ -17,6 +18,7 @@ const RECENTER_TARGET_LONGITUDE_DELTA = 0.020;
 const RECENTER_ZOOM_TOLERANCE = 0.0006;
 
 type Props = {
+  themeMode: ThemeMode;
   entries: PoopEntry[];
   currentUserId: string;
   selectedEntryId?: string | null;
@@ -34,6 +36,7 @@ type Props = {
 
 export function HomeMapSection(props: Props) {
   const {
+    themeMode,
     entries,
     currentUserId,
     selectedEntryId = null,
@@ -48,6 +51,16 @@ export function HomeMapSection(props: Props) {
     onUpdateEntryLocation,
     onComposerLocationChange,
   } = props;
+  const colors = getThemePalette(themeMode);
+  const mapControlSurface =
+    themeMode === 'light'
+      ? 'rgba(255, 255, 255, 0.96)'
+      : 'rgba(15, 20, 27, 0.9)';
+  const mapControlBorder = themeMode === 'light' ? '#c7d3e2' : '#2f3f54';
+  const markerOutlineColor = themeMode === 'light' ? 'rgba(83, 98, 118, 0.45)' : 'rgba(15, 20, 27, 0.45)';
+  const markerShadowColor = themeMode === 'light' ? '#6f7f95' : '#0f141b';
+  const selectedMarkerOutlineColor = themeMode === 'light' ? '#2d74da' : '#58a6ff';
+  const currentLocationCenterBorder = themeMode === 'light' ? '#b9d7fb' : '#dcecff';
   const locations = useMemo(() => getEntryLocations(entries), [entries]);
   const [region, setRegion] = useState<MapRegion>(() => getInitialRegion(locations));
   const initialRegionRef = useRef<MapRegion>(getInitialRegion(locations));
@@ -425,42 +438,69 @@ export function HomeMapSection(props: Props) {
 
   return (
     <View style={[styles.homeMapSection, fullScreen ? styles.homeMapSectionFull : null]}>
-      <View style={[styles.homeMapCard, fullScreen ? styles.homeMapCardFull : null]}>
+      <View
+        style={[
+          styles.homeMapCard,
+          fullScreen ? styles.homeMapCardFull : null,
+          { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+        ]}
+      >
         <View style={styles.homeMapTopActionsLeft}>
           <TouchableOpacity
-            style={[styles.iconButton, styles.iconButtonGhost, styles.homeMapActionButton]}
+            style={[
+              styles.iconButton,
+              styles.iconButtonGhost,
+              styles.homeMapActionButton,
+              { backgroundColor: mapControlSurface, borderColor: mapControlBorder },
+            ]}
             onPress={onOpenFriends}
             accessibilityLabel="Open friends"
           >
-            <Ionicons name="people" size={18} color="#f0f6fc" />
+            <Ionicons name="people" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
         <View style={styles.homeMapTopActions}>
           <TouchableOpacity
-            style={[styles.iconButton, styles.iconButtonPrimary, addEntryDisabled ? styles.buttonDisabled : null, styles.homeMapActionButton]}
-            onPress={handleOpenComposer}
-            disabled={addEntryDisabled}
-            accessibilityLabel="Add entry"
-          >
-            <Ionicons name="add" size={20} color="#ffffff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.iconButton, styles.iconButtonGhost, styles.homeMapActionButton, findMeDisabled ? styles.buttonDisabled : null]}
+            style={[
+              styles.iconButton,
+              styles.iconButtonGhost,
+              styles.homeMapActionButton,
+              { backgroundColor: mapControlSurface, borderColor: mapControlBorder },
+              findMeDisabled ? styles.buttonDisabled : null,
+            ]}
             onPress={handleFindMe}
             disabled={findMeDisabled}
             accessibilityLabel="Find my location"
           >
-            <Ionicons name="locate" size={18} color="#f0f6fc" />
+            <Ionicons name="locate" size={18} color={colors.text} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.iconButton, styles.iconButtonGhost, styles.homeMapActionButton, expandAllDisabled ? styles.buttonDisabled : null]}
+            style={[
+              styles.iconButton,
+              styles.iconButtonGhost,
+              styles.homeMapActionButton,
+              { backgroundColor: mapControlSurface, borderColor: mapControlBorder },
+              expandAllDisabled ? styles.buttonDisabled : null,
+            ]}
             onPress={handleExpandAll}
             disabled={expandAllDisabled}
             accessibilityLabel="Show all entries"
           >
-            <Ionicons name="globe-outline" size={18} color="#f0f6fc" />
+            <Ionicons name="globe-outline" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
+        <TouchableOpacity
+          style={[
+            styles.homeMapAddButton,
+            { backgroundColor: colors.primary, borderColor: colors.primaryBorder },
+            addEntryDisabled ? styles.buttonDisabled : null,
+          ]}
+          onPress={handleOpenComposer}
+          disabled={addEntryDisabled}
+          accessibilityLabel="Add entry"
+        >
+          <Ionicons name="add" size={30} color="#ffffff" />
+        </TouchableOpacity>
         <View
           ref={crosshairRef}
           style={[styles.mapCrosshairOverlay, getCrosshairOverlayStyle(), !showCrosshairOverlay ? { opacity: 0 } : null]}
@@ -475,6 +515,7 @@ export function HomeMapSection(props: Props) {
             ref={mapRef}
             style={[styles.homeMap, fullScreen ? styles.homeMapFull : null]}
             initialRegion={initialRegionRef.current}
+            userInterfaceStyle={themeMode}
             onLayout={(event: any) => {
               const width = Number(event?.nativeEvent?.layout?.width);
               const height = Number(event?.nativeEvent?.layout?.height);
@@ -520,8 +561,8 @@ export function HomeMapSection(props: Props) {
                 center={currentLocation}
                 radius={90}
                 strokeWidth={2}
-                strokeColor="rgba(88, 166, 255, 0.88)"
-                fillColor="rgba(88, 166, 255, 0.26)"
+                strokeColor={themeMode === 'light' ? 'rgba(45, 116, 218, 0.72)' : 'rgba(88, 166, 255, 0.88)'}
+                fillColor={themeMode === 'light' ? 'rgba(72, 141, 233, 0.16)' : 'rgba(88, 166, 255, 0.26)'}
               />
             ) : null}
             {currentLocation ? (
@@ -532,7 +573,15 @@ export function HomeMapSection(props: Props) {
                 anchor={{ x: 0.5, y: 0.5 }}
                 zIndex={10000}
               >
-                <View style={styles.mapCurrentLocationCenterDot} />
+                <View
+                  style={[
+                    styles.mapCurrentLocationCenterDot,
+                    {
+                      borderColor: currentLocationCenterBorder,
+                      backgroundColor: themeMode === 'light' ? '#3f8de8' : '#2f81f7',
+                    },
+                  ]}
+                />
               </MarkerComponent>
             ) : null}
             {mapMarkers.map((marker) => {
@@ -588,8 +637,12 @@ export function HomeMapSection(props: Props) {
                         styles.mapPoopMarkerBubble,
                         {
                           backgroundColor: getPoopMarkerColor(Number(entry.bristolType)),
+                          borderColor: markerOutlineColor,
+                          shadowColor: markerShadowColor,
                         },
-                        selectedMarkerEntryId === entry.id ? styles.mapPoopMarkerBubbleSelected : null,
+                        selectedMarkerEntryId === entry.id
+                          ? [styles.mapPoopMarkerBubbleSelected, { borderColor: selectedMarkerOutlineColor, shadowColor: selectedMarkerOutlineColor }]
+                          : null,
                       ]}
                     >
                       <Text style={styles.mapPoopMarkerEmoji}>💩</Text>
@@ -597,8 +650,13 @@ export function HomeMapSection(props: Props) {
                     <View
                       style={[
                         styles.mapPoopMarkerTip,
-                        { backgroundColor: getPoopMarkerColor(Number(entry.bristolType)) },
-                        selectedMarkerEntryId === entry.id ? styles.mapPoopMarkerTipSelected : null,
+                        {
+                          backgroundColor: getPoopMarkerColor(Number(entry.bristolType)),
+                          borderColor: markerOutlineColor,
+                        },
+                        selectedMarkerEntryId === entry.id
+                          ? [styles.mapPoopMarkerTipSelected, { borderColor: selectedMarkerOutlineColor }]
+                          : null,
                       ]}
                     />
                   </View>
@@ -608,19 +666,22 @@ export function HomeMapSection(props: Props) {
           </MapViewComponent>
         ) : (
           <View style={styles.homeMapFallback}>
-            <Text style={styles.muted}>Install `react-native-maps` to enable map rendering.</Text>
+            <Text style={[styles.muted, { color: colors.mutedText }]}>Install `react-native-maps` to enable map rendering.</Text>
           </View>
         )}
       </View>
       {locations.length === 0 ? (
-        <Text style={[styles.homeMapEmptyHint, fullScreen ? styles.homeMapHintOverlay : null]}>
+        <Text
+          style={[
+            styles.homeMapEmptyHint,
+            { color: colors.mutedText },
+            fullScreen ? styles.homeMapHintOverlay : null,
+            fullScreen ? { backgroundColor: colors.overlay, borderColor: colors.border } : null,
+          ]}
+        >
           No pinned logs yet. Add a new entry and allow location access to place your first pin.
         </Text>
-      ) : (
-        <Text style={[styles.homeMapLegendText, fullScreen ? styles.homeMapHintOverlay : null]}>
-          Showing {locations.length} pinned log{locations.length === 1 ? '' : 's'} from {entries.length} total entries.
-        </Text>
-      )}
+      ) : null}
     </View>
   );
 }

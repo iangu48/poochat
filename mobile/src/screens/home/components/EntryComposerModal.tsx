@@ -4,12 +4,14 @@ import Slider from '@react-native-community/slider';
 import PagerView from 'react-native-pager-view';
 import type { RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { styles } from '../../styles';
 import { BristolVisual, RatingVisual } from './EntryVisuals';
 import { formatDateTimeButtonLabel } from '../utils';
+import { getThemePalette, type ThemeMode } from '../../../theme';
 
 type Props = {
+  themeMode: ThemeMode;
   visible: boolean;
   addEntryLoading: boolean;
   isEditingEntry: boolean;
@@ -33,12 +35,15 @@ type Props = {
   onAddEntry: () => void;
   onClose: () => void;
   scrollRef: RefObject<any>;
+  closeOnOutsideTap?: boolean;
+  bottomOffset?: number;
 };
 
 const TOTAL_STEPS = 4;
 
 export function EntryComposerModal(props: Props) {
   const {
+    themeMode,
     visible,
     addEntryLoading,
     isEditingEntry,
@@ -54,7 +59,10 @@ export function EntryComposerModal(props: Props) {
     onNoteChange,
     onAddEntry,
     onClose,
+    closeOnOutsideTap = false,
+    bottomOffset = 0,
   } = props;
+  const colors = getThemePalette(themeMode);
 
   const effectiveDateTime = draftDateTime ?? getEntryDateTimeValue();
   const [mounted, setMounted] = useState(visible);
@@ -126,15 +134,22 @@ export function EntryComposerModal(props: Props) {
 
   return (
     <View style={styles.entryInlineOverlay} pointerEvents="box-none">
+      {closeOnOutsideTap ? <Pressable style={[styles.entryComposerBackdrop, { backgroundColor: colors.overlay }]} onPress={onClose} /> : null}
       <KeyboardAvoidingView
-        style={styles.entryKeyboardAvoiding}
+        style={[styles.entryKeyboardAvoiding, { paddingBottom: bottomOffset }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
         pointerEvents="box-none"
       >
-        <Animated.View style={[styles.commentsDrawerSheet, styles.entryDrawerSheet, { transform: [{ translateY }] }]}> 
-          <View style={styles.entryComposer}>
-            <Text style={styles.cardTitle}>{isEditingEntry ? 'Edit Entry' : 'Add New Entry'}</Text>
+        <Animated.View
+          style={[
+            styles.commentsDrawerSheet,
+            styles.entryDrawerSheet,
+            { transform: [{ translateY }], backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <View style={[styles.entryComposer, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>{isEditingEntry ? 'Edit Entry' : 'Add New Entry'}</Text>
             <View style={styles.entryProgressRow}>
               {Array.from({ length: TOTAL_STEPS }).map((_, index) => (
                 <View
@@ -157,8 +172,8 @@ export function EntryComposerModal(props: Props) {
               }}
             >
               <View key="step-0" style={styles.entryStepPane}>
-                <Text style={styles.label}>Bristol Type</Text>
-                <BristolVisual typeValue={Number(bristolType)} />
+                <Text style={[styles.label, { color: colors.text }]}>Bristol Type</Text>
+                <BristolVisual typeValue={Number(bristolType)} themeMode={themeMode} />
                 <Slider
                   minimumValue={1}
                   maximumValue={7}
@@ -166,40 +181,63 @@ export function EntryComposerModal(props: Props) {
                   tapToSeek
                   value={Number(bristolType)}
                   onValueChange={(value) => onBristolTypeChange(String(Math.round(value)))}
-                  minimumTrackTintColor="#1f6feb"
-                  maximumTrackTintColor="#30363d"
+                  minimumTrackTintColor={colors.primary}
+                  maximumTrackTintColor={colors.border}
                   thumbTintColor="#58a6ff"
                 />
               </View>
 
               <View key="step-1" style={styles.entryStepPane}>
-                <Text style={styles.label}>Comfort Rating</Text>
-                <RatingVisual ratingValue={Number(rating)} onSelect={(value) => onRatingChange(String(value))} />
+                <Text style={[styles.label, { color: colors.text }]}>Comfort Rating</Text>
+                <RatingVisual ratingValue={Number(rating)} onSelect={(value) => onRatingChange(String(value))} themeMode={themeMode} />
               </View>
 
               <View key="step-2" style={styles.entryStepPane}>
-                <Text style={styles.label}>Date & Time</Text>
-                <Text style={styles.muted}>{formatDateTimeButtonLabel(effectiveDateTime)}</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Date & Time</Text>
+                <Text style={[styles.muted, { color: colors.mutedText }]}>{formatDateTimeButtonLabel(effectiveDateTime)}</Text>
                 <View style={styles.entryDateToggleRow}>
                   <TouchableOpacity
-                    style={[styles.entryDateToggleButton, dateMode === 'date' ? styles.entryDateToggleButtonActive : null]}
+                    style={[
+                      styles.entryDateToggleButton,
+                      { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+                      dateMode === 'date' ? styles.entryDateToggleButtonActive : null,
+                    ]}
                     onPress={() => setDateMode('date')}
                   >
-                    <Text style={styles.entryDateToggleText}>Date</Text>
+                    <Text
+                      style={[
+                        styles.entryDateToggleText,
+                        { color: dateMode === 'date' ? '#ffffff' : colors.text },
+                      ]}
+                    >
+                      Date
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.entryDateToggleButton, dateMode === 'time' ? styles.entryDateToggleButtonActive : null]}
+                    style={[
+                      styles.entryDateToggleButton,
+                      { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+                      dateMode === 'time' ? styles.entryDateToggleButtonActive : null,
+                    ]}
                     onPress={() => setDateMode('time')}
                   >
-                    <Text style={styles.entryDateToggleText}>Time</Text>
+                    <Text
+                      style={[
+                        styles.entryDateToggleText,
+                        { color: dateMode === 'time' ? '#ffffff' : colors.text },
+                      ]}
+                    >
+                      Time
+                    </Text>
                   </TouchableOpacity>
                 </View>
-                <View style={styles.dateTimePickerWrap}>
+                <View style={[styles.dateTimePickerWrap, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
                   {dateMode === 'date' ? (
                     <DateTimePicker
                       value={effectiveDateTime}
                       mode="date"
                       display={Platform.OS === 'ios' ? 'spinner' : 'spinner'}
+                      textColor={colors.text}
                       onChange={onPickerChange('date')}
                     />
                   ) : (
@@ -207,6 +245,7 @@ export function EntryComposerModal(props: Props) {
                       value={effectiveDateTime}
                       mode="time"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      textColor={colors.text}
                       onChange={onPickerChange('time')}
                     />
                   )}
@@ -214,13 +253,13 @@ export function EntryComposerModal(props: Props) {
               </View>
 
               <View key="step-3" style={styles.entryStepPane}>
-                <Text style={styles.label}>Note (optional)</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Note (optional)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
                   value={note}
                   onChangeText={onNoteChange}
                   placeholder="Any context?"
-                  placeholderTextColor="#8b949e"
+                  placeholderTextColor={colors.mutedText}
                   multiline
                 />
               </View>
@@ -228,33 +267,43 @@ export function EntryComposerModal(props: Props) {
 
             <View style={styles.entryNavRow}>
               <TouchableOpacity
-                style={[styles.entryNavButton, styles.entryNavButtonSecondary, addEntryLoading ? styles.buttonDisabled : null]}
+                style={[
+                  styles.entryNavButton,
+                  styles.entryNavButtonSecondary,
+                  styles.entryNavButtonIconOnly,
+                  { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+                  addEntryLoading ? styles.buttonDisabled : null,
+                ]}
                 onPress={handleBack}
                 disabled={addEntryLoading}
+                accessibilityLabel={stepIndex === 0 ? 'Cancel' : 'Back'}
               >
-                <Ionicons name={stepIndex === 0 ? 'close' : 'arrow-back'} size={16} color="#f0f6fc" />
-                <Text style={styles.entryNavButtonText}>{stepIndex === 0 ? 'Cancel' : 'Back'}</Text>
+                <Ionicons name={stepIndex === 0 ? 'close' : 'arrow-back'} size={18} color={colors.text} />
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.entryNavButton, styles.entryNavButtonPrimary, addEntryLoading ? styles.buttonDisabled : null]}
+                style={[
+                  styles.entryNavButton,
+                  styles.entryNavButtonPrimary,
+                  styles.entryNavButtonIconOnly,
+                  { backgroundColor: colors.primary, borderColor: colors.primaryBorder },
+                  addEntryLoading ? styles.buttonDisabled : null,
+                ]}
                 onPress={handleNextOrSave}
                 disabled={addEntryLoading}
+                accessibilityLabel={
+                  addEntryLoading
+                    ? 'Saving'
+                    : stepIndex === 3
+                      ? (isEditingEntry ? 'Save changes' : 'Save entry')
+                      : 'Next'
+                }
               >
                 {addEntryLoading ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Ionicons name={stepIndex === 3 ? 'checkmark' : 'arrow-forward'} size={16} color="#fff" />
+                  <Ionicons name={stepIndex === 3 ? 'checkmark' : 'arrow-forward'} size={18} color="#fff" />
                 )}
-                <Text style={styles.entryNavButtonTextPrimary}>
-                  {addEntryLoading
-                    ? 'Saving...'
-                    : stepIndex === 3
-                      ? (isEditingEntry ? 'Save Changes' : 'Save Entry')
-                      : stepIndex === 2
-                        ? 'Apply'
-                        : 'Next'}
-                </Text>
               </TouchableOpacity>
             </View>
           </View>

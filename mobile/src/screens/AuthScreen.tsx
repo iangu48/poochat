@@ -3,10 +3,12 @@ import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'reac
 import { Ionicons } from '@expo/vector-icons';
 import type { TextInput as TextInputHandle } from 'react-native';
 import { styles } from './styles';
+import { getThemePalette, type ThemeMode } from '../theme';
 
 type AuthMethod = 'phone' | 'email';
 
 type Props = {
+  themeMode: ThemeMode;
   authMethod: AuthMethod;
   setAuthMethod: (method: AuthMethod) => void;
   authPhone: string;
@@ -31,6 +33,7 @@ type Props = {
 
 export function AuthScreen(props: Props) {
   const {
+    themeMode,
     authMethod,
     setAuthMethod,
     authPhone,
@@ -52,11 +55,12 @@ export function AuthScreen(props: Props) {
     onVerifyPhoneOtp,
     onAuth,
   } = props;
+  const colors = getThemePalette(themeMode);
 
   return (
-    <View style={styles.screen}>
-      <Text style={styles.title}>Poochat</Text>
-      <Text style={styles.muted}>Sign in with phone (recommended) or email.</Text>
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Poochat</Text>
+      <Text style={[styles.muted, { color: colors.mutedText }]}>Sign in with phone (recommended) or email.</Text>
       <View style={styles.row}>
         <TouchableOpacity
           style={[authMethod === 'phone' ? styles.button : styles.buttonSecondary, authSubmitting && styles.buttonDisabled]}
@@ -83,15 +87,19 @@ export function AuthScreen(props: Props) {
       {authMethod === 'phone' && (
         <>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
             keyboardType="phone-pad"
             placeholder="+15551234567"
-            placeholderTextColor="#8b949e"
+            placeholderTextColor={colors.mutedText}
             value={authPhone}
             onChangeText={setAuthPhone}
           />
           <TouchableOpacity
-            style={[styles.button, (authOtpCooldownSec > 0 || authSendingOtp) && styles.buttonDisabled]}
+            style={[
+              styles.button,
+              { backgroundColor: colors.primary, borderColor: colors.primaryBorder, borderWidth: 1 },
+              (authOtpCooldownSec > 0 || authSendingOtp) && styles.buttonDisabled,
+            ]}
             onPress={onSendPhoneOtp}
             disabled={authOtpCooldownSec > 0 || authSendingOtp}
           >
@@ -108,16 +116,20 @@ export function AuthScreen(props: Props) {
           </TouchableOpacity>
           <TextInput
             ref={otpInputRef}
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
             keyboardType="number-pad"
             placeholder="SMS code"
-            placeholderTextColor="#8b949e"
+            placeholderTextColor={colors.mutedText}
             value={authOtp}
             onChangeText={setAuthOtp}
             maxLength={6}
           />
           <TouchableOpacity
-            style={[styles.buttonSecondary, authVerifyingOtp && styles.buttonDisabled]}
+            style={[
+              styles.buttonSecondary,
+              { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
+              authVerifyingOtp && styles.buttonDisabled,
+            ]}
             onPress={onVerifyPhoneOtp}
             disabled={authVerifyingOtp}
           >
@@ -132,25 +144,29 @@ export function AuthScreen(props: Props) {
       {authMethod === 'email' && (
         <>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
             autoCapitalize="none"
             keyboardType="email-address"
             placeholder="Email"
-            placeholderTextColor="#8b949e"
+            placeholderTextColor={colors.mutedText}
             value={authEmail}
             onChangeText={setAuthEmail}
           />
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
             secureTextEntry
             placeholder="Password"
-            placeholderTextColor="#8b949e"
+            placeholderTextColor={colors.mutedText}
             value={authPassword}
             onChangeText={setAuthPassword}
           />
           <View style={styles.row}>
             <TouchableOpacity
-              style={[styles.button, authSubmitting && styles.buttonDisabled]}
+              style={[
+                styles.button,
+                { backgroundColor: colors.primary, borderColor: colors.primaryBorder, borderWidth: 1 },
+                authSubmitting && styles.buttonDisabled,
+              ]}
               onPress={() => onAuth('sign-in')}
               disabled={authSubmitting}
             >
@@ -160,7 +176,11 @@ export function AuthScreen(props: Props) {
               </View>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.buttonSecondary, authSubmitting && styles.buttonDisabled]}
+              style={[
+                styles.buttonSecondary,
+                { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
+                authSubmitting && styles.buttonDisabled,
+              ]}
               onPress={() => onAuth('sign-up')}
               disabled={authSubmitting}
             >
@@ -173,7 +193,7 @@ export function AuthScreen(props: Props) {
         </>
       )}
 
-      {!!authStatus && <Text style={styles.muted}>{authStatus}</Text>}
+      {!!authStatus && <Text style={[styles.muted, { color: colors.mutedText }]}>{authStatus}</Text>}
       {!!authError && <Text style={styles.error}>{authError}</Text>}
     </View>
   );
