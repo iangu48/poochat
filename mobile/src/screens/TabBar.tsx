@@ -2,7 +2,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { styles } from './styles';
 
-export type Tab = 'home' | 'social' | 'account';
+export type Tab = 'overview' | 'home' | 'account';
 
 type Props = {
   tab: Tab;
@@ -13,8 +13,8 @@ export function TabBar({ tab, onTabChange }: Props) {
   return (
     <View style={styles.tabIslandDock} pointerEvents="box-none">
       <View style={styles.tabRow}>
+        <TabButton tab={tab} label="Overview" icon="analytics" value="overview" onPress={onTabChange} />
         <TabButton tab={tab} label="Home" icon="home" value="home" onPress={onTabChange} />
-        <TabButton tab={tab} label="Social" icon="people" value="social" onPress={onTabChange} />
         <TabButton tab={tab} label="Account" icon="person" value="account" onPress={onTabChange} />
       </View>
     </View>

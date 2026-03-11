@@ -1,13 +1,13 @@
-import { SafeAreaView, View } from 'react-native';
+import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
-import { FriendsScreen } from './src/screens/FriendsScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LoadingScreen } from './src/screens/LoadingScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { OverviewScreen } from './src/screens/OverviewScreen';
 import { styles } from './src/screens/styles';
 import { TabBar } from './src/screens/TabBar';
 import { useAppController } from './src/hooks/useAppController';
@@ -18,7 +18,7 @@ export default function App() {
   if (!app.session) {
     return (
       <GestureHandlerRootView style={styles.root}>
-        <SafeAreaView style={styles.root}>
+        <View style={styles.root}>
           <StatusBar style="auto" />
           <AuthScreen
             authMethod={app.authMethod}
@@ -42,7 +42,7 @@ export default function App() {
             onVerifyPhoneOtp={() => void app.handleVerifyPhoneOtp()}
             onAuth={(mode) => void app.handleAuth(mode)}
           />
-        </SafeAreaView>
+        </View>
       </GestureHandlerRootView>
     );
   }
@@ -50,10 +50,10 @@ export default function App() {
   if (app.profileLoading) {
     return (
       <GestureHandlerRootView style={styles.root}>
-        <SafeAreaView style={styles.root}>
+        <View style={styles.root}>
           <StatusBar style="auto" />
           <LoadingScreen />
-        </SafeAreaView>
+        </View>
       </GestureHandlerRootView>
     );
   }
@@ -61,7 +61,7 @@ export default function App() {
   if (!app.myProfile) {
     return (
       <GestureHandlerRootView style={styles.root}>
-        <SafeAreaView style={styles.root}>
+        <View style={styles.root}>
           <StatusBar style="auto" />
           <OnboardingScreen
             username={app.onboardingUsername}
@@ -74,17 +74,24 @@ export default function App() {
             onSave={() => void app.handleSaveProfile()}
             onSignOut={() => void app.handleSignOut()}
           />
-        </SafeAreaView>
+        </View>
       </GestureHandlerRootView>
     );
   }
 
   const homeProps = {
+    currentUserId: app.currentUserId,
     entries: app.entries,
+    feedItems: app.feedItems,
+    profilesById: app.profilesById,
+    feedCommentsByEntry: app.feedCommentsByEntry,
+    feedCommentDraftByEntry: app.feedCommentDraftByEntry,
+    feedCommentSubmittingEntryId: app.feedCommentSubmittingEntryId,
+    feedLoading: app.feedLoading,
+    feedError: app.feedError,
     loadingEntries: app.loadingEntries,
     addEntryLoading: app.addEntryLoading,
     updatingEntryLocationIds: app.updatingEntryLocationIds,
-    deletingEntryIds: app.deletingEntryIds,
     isEditingEntry: Boolean(app.editingEntryId),
     entryError: app.entryError,
     showEntryComposer: app.showEntryComposer,
@@ -93,11 +100,8 @@ export default function App() {
     note: app.note,
     entryDate: app.entryDate,
     entryTime: app.entryTime,
-    onRefreshEntries: () => void app.refreshEntries(),
-    onDeleteEntry: (entryId: string) => void app.handleDeleteEntry(entryId),
     onUpdateEntryLocation: (entryId: string, latitude: number, longitude: number) =>
       void app.handleUpdateEntryLocation(entryId, latitude, longitude),
-    onEditEntry: app.handleStartEditEntry,
     onToggleComposer: app.openAddEntryComposer,
     onBristolTypeChange: app.setBristolType,
     onRatingChange: app.setRating,
@@ -108,19 +112,6 @@ export default function App() {
     onComposerLocationChange: (latitude: number, longitude: number, source?: 'gps' | 'manual') =>
       app.handleSetEntryComposerLocation(latitude, longitude, source),
     onCloseComposer: app.closeEntryComposer,
-  };
-
-  const socialProps = {
-    socialSection: app.socialSection,
-    setSocialSection: app.setSocialSection,
-    feedItems: app.feedItems,
-    profilesById: app.profilesById,
-    feedCommentsByEntry: app.feedCommentsByEntry,
-    feedCommentDraftByEntry: app.feedCommentDraftByEntry,
-    feedCommentSubmittingEntryId: app.feedCommentSubmittingEntryId,
-    feedError: app.feedError,
-    feedLoading: app.feedLoading,
-    onRefreshFeed: () => void app.refreshFeed(),
     onFeedCommentDraftChange: app.setFeedCommentDraft,
     onAddFeedComment: (entryId: string) => app.handleAddFeedComment(entryId),
     friendUsername: app.friendUsername,
@@ -128,13 +119,20 @@ export default function App() {
     incomingRequests: app.incomingRequests,
     friendError: app.friendError,
     friendStatus: app.friendStatus,
-    friendsLoading: app.friendsLoading,
     sendFriendRequestLoading: app.sendFriendRequestLoading,
     acceptingRequestIds: app.acceptingRequestIds,
     onFriendUsernameChange: app.setFriendUsername,
     onSendFriendRequest: () => app.handleSendFriendRequest(),
-    onRefreshFriends: () => void app.refreshFriends(),
     onAcceptRequest: (friendshipId: string) => void app.handleAcceptRequest(friendshipId),
+  };
+
+  const overviewProps = {
+    entries: app.entries,
+    loadingEntries: app.loadingEntries,
+    entryError: app.entryError,
+    deletingEntryIds: app.deletingEntryIds,
+    onDeleteEntry: (entryId: string) => void app.handleDeleteEntry(entryId),
+    onEditEntry: app.handleStartEditEntry,
   };
 
   const accountProps = {
@@ -166,9 +164,54 @@ export default function App() {
         <View style={styles.root}>
           <StatusBar style="auto" />
           <View style={styles.contentWithTabIsland}>
-            {app.tab === 'home' && <HomeScreen {...homeProps} />}
-            {app.tab === 'social' && <FriendsScreen {...socialProps} />}
-            {app.tab === 'account' && <AccountScreen {...accountProps} />}
+            <View
+              style={[
+                styles.root,
+                {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  opacity: app.tab === 'overview' ? 1 : 0,
+                },
+              ]}
+              pointerEvents={app.tab === 'overview' ? 'auto' : 'none'}
+            >
+              <OverviewScreen {...overviewProps} />
+            </View>
+            <View
+              style={[
+                styles.root,
+                {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  opacity: app.tab === 'home' ? 1 : 0,
+                },
+              ]}
+              pointerEvents={app.tab === 'home' ? 'auto' : 'none'}
+            >
+              <HomeScreen {...homeProps} />
+            </View>
+            <View
+              style={[
+                styles.root,
+                {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  opacity: app.tab === 'account' ? 1 : 0,
+                },
+              ]}
+              pointerEvents={app.tab === 'account' ? 'auto' : 'none'}
+            >
+              <AccountScreen {...accountProps} />
+            </View>
           </View>
           <TabBar tab={app.tab} onTabChange={app.setTab} />
         </View>

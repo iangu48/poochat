@@ -801,6 +801,14 @@ export const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
   },
+  homeMapTopActionsLeft: {
+    position: 'absolute',
+    top: 56,
+    left: 10,
+    zIndex: 10,
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
   homeMapActionButton: {
     marginRight: 0,
     marginBottom: 0,
@@ -923,6 +931,15 @@ export const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
+  mapPoopMarkerBubbleSelected: {
+    borderColor: '#58a6ff',
+    borderWidth: 2,
+    shadowColor: '#58a6ff',
+    shadowOpacity: 0.55,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 7,
+  },
   mapPoopMarkerEmoji: {
     fontSize: 15,
     lineHeight: 17,
@@ -935,6 +952,11 @@ export const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderRightWidth: 1,
     borderColor: 'rgba(15, 20, 27, 0.35)',
+  },
+  mapPoopMarkerTipSelected: {
+    borderColor: 'rgba(88, 166, 255, 0.95)',
+    borderBottomWidth: 1.5,
+    borderRightWidth: 1.5,
   },
   mapCurrentLocationWrap: {
     alignItems: 'center',

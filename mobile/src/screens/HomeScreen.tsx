@@ -1,31 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, LayoutChangeEvent, Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import PagerView from 'react-native-pager-view';
+import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import type { PoopEntry } from '../types/domain';
+import { Ionicons } from '@expo/vector-icons';
+import type {
+  FeedComment,
+  FeedItem,
+  IncomingFriendRequest,
+  PoopEntry,
+  Profile,
+} from '../types/domain';
 import { styles } from './styles';
-import { MonthOverviewSection } from './home/components/MonthOverviewSection';
-import { RecentEntriesSection } from './home/components/RecentEntriesSection';
 import { HomeMapSection } from './home/components/HomeMapSection';
 import { EntryComposerModal } from './home/components/EntryComposerModal';
-import { EntryActionsMenuModal } from './home/components/EntryActionsMenuModal';
-import {
-  formatDateInput,
-  formatTimeInput,
-  getDateLabelFromKey,
-  getDaySummary,
-  getDailyTip,
-  getMonthSummary,
-  getMonthlyTip,
-} from './home/utils';
+import { ProfileAvatar } from '../components/ProfileAvatar';
+import { BristolTypeChip } from './home/components/EntryVisuals';
+import { formatDateInput, formatEntryTimestamp, formatTimeInput, getRatingEmoji, getRatingEmotion } from './home/utils';
 
 type Props = {
-  entries: PoopEntry[];
-  loadingEntries: boolean;
+  currentUserId: string;
+  feedItems: FeedItem[];
+  profilesById: Record<string, Profile>;
+  feedCommentsByEntry: Record<string, FeedComment[]>;
+  feedCommentDraftByEntry: Record<string, string>;
+  feedCommentSubmittingEntryId: string;
+  feedLoading: boolean;
+  feedError: string;
   addEntryLoading: boolean;
   updatingEntryLocationIds: string[];
-  deletingEntryIds: string[];
   isEditingEntry: boolean;
   entryError: string;
   showEntryComposer: boolean;
@@ -34,10 +47,14 @@ type Props = {
   note: string;
   entryDate: string;
   entryTime: string;
-  onRefreshEntries: () => void;
-  onDeleteEntry: (entryId: string) => void;
+  friendUsername: string;
+  friends: Profile[];
+  incomingRequests: IncomingFriendRequest[];
+  friendError: string;
+  friendStatus: string;
+  sendFriendRequestLoading: boolean;
+  acceptingRequestIds: string[];
   onUpdateEntryLocation: (entryId: string, latitude: number, longitude: number) => void;
-  onEditEntry: (entry: PoopEntry) => void;
   onToggleComposer: () => void;
   onBristolTypeChange: (value: string) => void;
   onRatingChange: (value: string) => void;
@@ -47,15 +64,25 @@ type Props = {
   onAddEntry: () => void;
   onComposerLocationChange: (latitude: number, longitude: number, source?: 'gps' | 'manual') => void;
   onCloseComposer: () => void;
+  onFeedCommentDraftChange: (entryId: string, value: string) => void;
+  onAddFeedComment: (entryId: string) => Promise<void>;
+  onFriendUsernameChange: (value: string) => void;
+  onSendFriendRequest: () => Promise<void>;
+  onAcceptRequest: (friendshipId: string) => void;
 };
 
 export function HomeScreen(props: Props) {
   const {
-    entries,
-    loadingEntries,
+    currentUserId,
+    feedItems,
+    profilesById,
+    feedCommentsByEntry,
+    feedCommentDraftByEntry,
+    feedCommentSubmittingEntryId,
+    feedLoading,
+    feedError,
     addEntryLoading,
     updatingEntryLocationIds,
-    deletingEntryIds,
     isEditingEntry,
     entryError,
     showEntryComposer,
@@ -64,9 +91,14 @@ export function HomeScreen(props: Props) {
     note,
     entryDate,
     entryTime,
-    onDeleteEntry,
+    friendUsername,
+    friends,
+    incomingRequests,
+    friendError,
+    friendStatus,
+    sendFriendRequestLoading,
+    acceptingRequestIds,
     onUpdateEntryLocation,
-    onEditEntry,
     onToggleComposer,
     onBristolTypeChange,
     onRatingChange,
@@ -76,72 +108,63 @@ export function HomeScreen(props: Props) {
     onAddEntry,
     onComposerLocationChange,
     onCloseComposer,
+    onFeedCommentDraftChange,
+    onAddFeedComment,
+    onFriendUsernameChange,
+    onSendFriendRequest,
+    onAcceptRequest,
   } = props;
 
-  const [visibleMonthStart, setVisibleMonthStart] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-  const now = useMemo(() => new Date(), []);
-  const monthLabel = visibleMonthStart.toLocaleString([], { month: 'long', year: 'numeric' });
-  const monthSummary = useMemo(() => getMonthSummary(entries, visibleMonthStart, now), [entries, visibleMonthStart, now]);
-  const monthlyTip = useMemo(
-    () => getMonthlyTip(monthSummary.averageMonthBristol, monthSummary.averageMonthRating, monthSummary.monthEntries.length),
-    [monthSummary.averageMonthBristol, monthSummary.averageMonthRating, monthSummary.monthEntries.length],
-  );
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
-  const selectedDaySummary = useMemo(
-    () => (selectedDateKey ? getDaySummary(entries, selectedDateKey) : null),
-    [entries, selectedDateKey],
-  );
-  const selectedRecapTitle = useMemo(
-    () => (selectedDateKey ? getDateLabelFromKey(selectedDateKey) : 'Your Month'),
-    [selectedDateKey],
-  );
-  const recapTip = useMemo(
-    () => (selectedDaySummary
-      ? getDailyTip(selectedDaySummary.averageDayBristol, selectedDaySummary.averageDayRating, selectedDaySummary.dayEntries.length)
-      : monthlyTip),
-    [monthlyTip, selectedDaySummary],
-  );
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const [selectedFeedEntryId, setSelectedFeedEntryId] = useState<string | null>(null);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+  const commentInputRef = useRef<TextInput | null>(null);
+  const entryComposerScrollRef = useRef<ScrollView | null>(null);
 
-  const [entryMenuId, setEntryMenuId] = useState<string | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
-  const [entryMenuAnchor, setEntryMenuAnchor] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [showDateEditor, setShowDateEditor] = useState(false);
   const [pickerStep, setPickerStep] = useState<'none' | 'date' | 'time'>('none');
   const [draftDateTime, setDraftDateTime] = useState<Date | null>(null);
-  const [dateStepActionsRowY, setDateStepActionsRowY] = useState(0);
-  const [entryActionsRowY, setEntryActionsRowY] = useState(0);
-  const entryComposerScrollRef = useRef<ScrollView | null>(null);
-  const homeDetailsPagerRef = useRef<PagerView | null>(null);
-  const [homeDetailsPage, setHomeDetailsPage] = useState(0);
 
-  const menuWidth = 140;
-  const screenWidth = Dimensions.get('window').width;
-  const menuLeft = Math.max(12, Math.min(entryMenuAnchor.x - menuWidth + 20, screenWidth - menuWidth - 12));
+  const todayKey = formatDateInput(new Date());
+  const todayFeedItems = useMemo(
+    () => feedItems.filter((item) => formatDateInput(new Date(item.occurredAt)) === todayKey),
+    [feedItems, todayKey],
+  );
 
-  function scrollComposerToBottom(): void {
-    const scrollRef = entryComposerScrollRef.current;
-    if (!scrollRef) return;
-    scrollRef.scrollToEnd({ animated: true });
-    scrollRef.scrollTo({ x: 0, y: 100000, animated: true });
-  }
+  const todayMapEntries = useMemo<PoopEntry[]>(
+    () => todayFeedItems.map((item) => ({
+      id: item.entryId,
+      userId: item.subjectId,
+      occurredAt: item.occurredAt,
+      bristolType: item.bristolType,
+      rating: item.rating,
+      note: null,
+      latitude: item.latitude,
+      longitude: item.longitude,
+      locationSource: 'manual',
+    })),
+    [todayFeedItems],
+  );
 
-  function scrollToDateStepActions(): void {
-    const scrollRef = entryComposerScrollRef.current;
-    if (!scrollRef) return;
-    if (dateStepActionsRowY <= 0) {
-      scrollComposerToBottom();
-      return;
-    }
-    const targetY = Math.max(0, dateStepActionsRowY - 120);
-    scrollRef.scrollTo({ x: 0, y: targetY, animated: true });
-  }
+  const selectedFeedItem = useMemo(
+    () => (selectedFeedEntryId ? todayFeedItems.find((item) => item.entryId === selectedFeedEntryId) ?? null : null),
+    [selectedFeedEntryId, todayFeedItems],
+  );
+  const selectedComments = selectedFeedEntryId ? (feedCommentsByEntry[selectedFeedEntryId] ?? []) : [];
 
-  function handleEntryActionsRowLayout(event: LayoutChangeEvent): void {
-    setEntryActionsRowY(event.nativeEvent.layout.y);
-  }
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = Keyboard.addListener(showEvent, (event) => {
+      const next = Math.max(0, event.endCoordinates?.height ?? 0);
+      setKeyboardOffset(next);
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => setKeyboardOffset(0));
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
 
   function getEntryDateTimeValue(): Date {
     const parsed = new Date(`${entryDate.trim()}T${entryTime.trim()}:00`);
@@ -166,129 +189,222 @@ export function HomeScreen(props: Props) {
     };
   }
 
-  useEffect(() => {
-    if (!showDateEditor || pickerStep === 'none') return;
-    const timerA = setTimeout(scrollToDateStepActions, 70);
-    const timerB = setTimeout(scrollToDateStepActions, 220);
-    return () => {
-      clearTimeout(timerA);
-      clearTimeout(timerB);
-    };
-  }, [showDateEditor, pickerStep, dateStepActionsRowY]);
+  function onSaveDateTime(): void {
+    const selected = draftDateTime ?? getEntryDateTimeValue();
+    onEntryDateChange(formatDateInput(selected));
+    onEntryTimeChange(formatTimeInput(selected));
+  }
+
+  async function handleSendFriendRequestPress(): Promise<void> {
+    await onSendFriendRequest();
+  }
+
+  async function handleSubmitComment(entryId: string): Promise<void> {
+    await onAddFeedComment(entryId);
+    requestAnimationFrame(() => {
+      commentInputRef.current?.focus?.();
+    });
+  }
 
   return (
     <>
       <View style={styles.homeMapScreen}>
-        {loadingEntries ? (
+        {feedLoading ? (
           <View style={styles.homeMapLoadingOverlay}>
             <ActivityIndicator size="small" color="#f0f6fc" />
           </View>
         ) : null}
+
         <HomeMapSection
-          entries={entries}
+          entries={todayMapEntries}
+          currentUserId={currentUserId}
+          selectedEntryId={selectedFeedEntryId}
           addEntryLoading={addEntryLoading}
           updatingEntryLocationIds={updatingEntryLocationIds}
           fullScreen
           showComposer={showEntryComposer}
           onOpenComposer={onToggleComposer}
           onCloseComposer={onCloseComposer}
-          onOpenDetails={() => setShowDetails(true)}
+          onOpenFriends={() => setShowFriendsModal(true)}
+          onPressEntryMarker={(entryId) => setSelectedFeedEntryId(entryId)}
           onUpdateEntryLocation={onUpdateEntryLocation}
           onComposerLocationChange={onComposerLocationChange}
         />
+
         {!!entryError ? <Text style={styles.error}>{entryError}</Text> : null}
+        {!!feedError ? <Text style={styles.error}>{feedError}</Text> : null}
       </View>
 
-      <Modal visible={showDetails} transparent animationType="fade" onRequestClose={() => setShowDetails(false)}>
-        <View style={styles.modalBackdrop}>
-          <Pressable style={styles.modalBackdropTapArea} onPress={() => setShowDetails(false)} />
-          <View style={[styles.modalCard, styles.homeDetailsModalCard]}>
-            <View style={styles.homeDetailsHeader}>
-              <View style={styles.homeDetailsTabRow}>
-                <TouchableOpacity
-                  style={[styles.homeDetailsTabButton, homeDetailsPage === 0 ? styles.homeDetailsTabButtonActive : null]}
-                  onPress={() => {
-                    setHomeDetailsPage(0);
-                    homeDetailsPagerRef.current?.setPage(0);
-                  }}
-                >
-                  <Text style={[styles.homeDetailsTabText, homeDetailsPage === 0 ? styles.homeDetailsTabTextActive : null]}>Overview</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.homeDetailsTabButton, homeDetailsPage === 1 ? styles.homeDetailsTabButtonActive : null]}
-                  onPress={() => {
-                    setHomeDetailsPage(1);
-                    homeDetailsPagerRef.current?.setPage(1);
-                  }}
-                >
-                  <Text style={[styles.homeDetailsTabText, homeDetailsPage === 1 ? styles.homeDetailsTabTextActive : null]}>Recent</Text>
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity style={[styles.iconButton, styles.iconButtonGhost]} onPress={() => setShowDetails(false)} accessibilityLabel="Close details">
-                <Ionicons name="close" size={18} color="#f0f6fc" />
+      <Modal transparent visible={showFriendsModal} animationType="fade" onRequestClose={() => setShowFriendsModal(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowFriendsModal(false)}>
+          <Pressable style={[styles.modalCard, styles.socialModalCard]} onPress={() => {}}>
+            <Text style={styles.cardTitle}>Friends</Text>
+            <View style={styles.feedCommentComposerRow}>
+              <TextInput
+                style={[styles.input, styles.feedCommentInput]}
+                value={friendUsername}
+                onChangeText={onFriendUsernameChange}
+                placeholder="username"
+                placeholderTextColor="#8b949e"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.iconButton,
+                  styles.iconButtonSecondary,
+                  sendFriendRequestLoading || !friendUsername.trim() ? styles.buttonDisabled : null,
+                ]}
+                onPress={() => void handleSendFriendRequestPress()}
+                disabled={sendFriendRequestLoading || !friendUsername.trim()}
+                accessibilityLabel="Send friend request"
+              >
+                {sendFriendRequestLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="person-add" size={18} color="#fff" />
+                )}
               </TouchableOpacity>
             </View>
-            <PagerView
-              ref={homeDetailsPagerRef}
-              style={styles.homeDetailsPager}
-              initialPage={0}
-              scrollEnabled={false}
-              onPageSelected={(event: any) => setHomeDetailsPage(event.nativeEvent.position)}
-            >
-              <View key="overview" style={styles.homeDetailsPage}>
-                <ScrollView
-                  style={styles.homeDetailsScroll}
-                  contentContainerStyle={styles.homeDetailsScrollContent}
-                  onScrollBeginDrag={() => setEntryMenuId(null)}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <MonthOverviewSection
-                    recapTitle={selectedRecapTitle}
-                    entryCount={selectedDaySummary ? selectedDaySummary.dayEntries.length : monthSummary.monthEntries.length}
-                    averageRating={selectedDaySummary ? selectedDaySummary.averageDayRating : monthSummary.averageMonthRating}
-                    thirdStatLabel={selectedDaySummary ? 'Last Log' : 'Days Logged'}
-                    thirdStatValue={selectedDaySummary ? (selectedDaySummary.latestEntryTimeLabel ?? '-') : monthSummary.uniqueLoggedDays}
-                    averageBristol={selectedDaySummary ? selectedDaySummary.averageDayBristol : monthSummary.averageMonthBristol}
-                    tipText={recapTip}
-                    monthLabel={monthLabel}
-                    calendarCells={monthSummary.calendarCells}
-                    selectedDateKey={selectedDateKey}
-                    selectedDateEntries={selectedDaySummary?.dayEntries ?? []}
-                    onPrevMonth={() => setVisibleMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-                    onNextMonth={() => setVisibleMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-                    onSelectDate={(dateKey) => setSelectedDateKey((prev) => (prev === dateKey ? null : dateKey))}
-                  />
-                </ScrollView>
-              </View>
 
-              <View key="recent" style={styles.homeDetailsPage}>
-                <ScrollView
-                  style={styles.homeDetailsScroll}
-                  contentContainerStyle={styles.homeDetailsScrollContent}
-                  onScrollBeginDrag={() => setEntryMenuId(null)}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <RecentEntriesSection
-                    entries={entries}
-                    loadingEntries={loadingEntries}
-                    entryError={entryError}
-                    deletingEntryIds={deletingEntryIds}
-                    onOpenEntryMenu={(event, entryId) => {
-                      setEntryMenuAnchor({
-                        x: event.nativeEvent.pageX,
-                        y: event.nativeEvent.pageY,
-                      });
-                      setEntryMenuId((prev) => (prev === entryId ? null : entryId));
-                    }}
-                  />
+            {incomingRequests.length > 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>Incoming Requests</Text>
+                <ScrollView style={{ maxHeight: 220 }}>
+                  {incomingRequests.map((request) => {
+                    const isAccepting = acceptingRequestIds.includes(request.id);
+                    return (
+                      <View key={request.id} style={styles.card}>
+                        <View style={styles.inlineRow}>
+                          <ProfileAvatar
+                            size={28}
+                            avatarUrl={request.from.avatarUrl}
+                            avatarTint={request.from.avatarTint}
+                          />
+                          <Text style={[styles.cardTitle, styles.inlineLeft]}>
+                            {request.from.displayName} (@{request.from.username})
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.buttonSecondary, isAccepting && styles.buttonDisabled]}
+                          onPress={() => onAcceptRequest(request.id)}
+                          disabled={isAccepting}
+                        >
+                          {isAccepting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.buttonText}>Accept</Text>}
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
                 </ScrollView>
-              </View>
-            </PagerView>
-            <View style={styles.homeDetailsDotsRow}>
-              <View style={[styles.homeDetailsDot, homeDetailsPage === 0 ? styles.homeDetailsDotActive : null]} />
-              <View style={[styles.homeDetailsDot, homeDetailsPage === 1 ? styles.homeDetailsDotActive : null]} />
-            </View>
-          </View>
+              </>
+            ) : null}
+
+            <Text style={styles.sectionTitle}>Your Friends</Text>
+            <ScrollView style={{ maxHeight: 180 }}>
+              {friends.map((friend) => (
+                <View key={friend.id} style={styles.card}>
+                  <View style={styles.inlineRow}>
+                    <ProfileAvatar size={28} avatarUrl={friend.avatarUrl} avatarTint={friend.avatarTint} />
+                    <Text style={[styles.cardTitle, styles.inlineLeft]}>
+                      {friend.displayName} (@{friend.username})
+                    </Text>
+                  </View>
+                </View>
+              ))}
+              {friends.length === 0 ? <Text style={styles.muted}>No accepted friends yet.</Text> : null}
+            </ScrollView>
+
+            {!!friendStatus ? <Text style={styles.muted}>{friendStatus}</Text> : null}
+            {!!friendError ? <Text style={styles.error}>{friendError}</Text> : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal transparent visible={Boolean(selectedFeedItem)} animationType="fade" onRequestClose={() => setSelectedFeedEntryId(null)}>
+        <View style={styles.commentsDrawerOverlay}>
+          <Pressable style={styles.commentsDrawerBackdrop} onPress={() => setSelectedFeedEntryId(null)} />
+          <KeyboardAvoidingView
+            style={styles.commentsDrawerWrap}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+            pointerEvents="box-none"
+          >
+            <Pressable style={[styles.commentsDrawerSheet, { height: '72%', marginBottom: Platform.OS === 'ios' ? 0 : keyboardOffset }]} onPress={() => {}}>
+              {selectedFeedItem ? (
+                <>
+                  <View style={styles.commentsDrawerHandleWrap}>
+                    <View style={styles.commentsDrawerHandle} />
+                  </View>
+                  <View style={styles.card}>
+                    <View style={styles.feedHeaderRow}>
+                      <View style={styles.feedIdentityWrap}>
+                        <ProfileAvatar
+                          size={34}
+                          avatarUrl={profilesById[selectedFeedItem.subjectId]?.avatarUrl ?? null}
+                          avatarTint={profilesById[selectedFeedItem.subjectId]?.avatarTint ?? '#5b6c8a'}
+                        />
+                        <View style={styles.inlineLeft}>
+                          <Text style={styles.cardTitle}>{selectedFeedItem.displayName}</Text>
+                          <Text style={styles.feedMetaTime}>{formatEntryTimestamp(selectedFeedItem.occurredAt)}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.feedStatsColumn}>
+                        <Text style={styles.feedMetaInline}>
+                          {getRatingEmoji(selectedFeedItem.rating)} {getRatingEmotion(selectedFeedItem.rating)}
+                        </Text>
+                        <BristolTypeChip typeValue={selectedFeedItem.bristolType} />
+                      </View>
+                    </View>
+                    <Text style={styles.muted}>{selectedComments.length} comment{selectedComments.length === 1 ? '' : 's'}</Text>
+                  </View>
+
+                  <ScrollView
+                    style={styles.commentsSheetList}
+                    contentContainerStyle={styles.commentsSheetScrollContent}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {selectedComments.map((comment) => (
+                      <View key={comment.id} style={styles.feedCommentRow}>
+                        <ProfileAvatar size={24} avatarUrl={comment.avatarUrl} avatarTint={comment.avatarTint} />
+                        <View style={styles.feedCommentBodyWrap}>
+                          <Text style={styles.feedCommentAuthor}>{comment.displayName}</Text>
+                          <Text style={styles.feedCommentText}>{comment.body}</Text>
+                          <Text style={styles.feedCommentTime}>{formatEntryTimestamp(comment.createdAt)}</Text>
+                        </View>
+                      </View>
+                    ))}
+                    {selectedComments.length === 0 ? <Text style={styles.muted}>No comments yet.</Text> : null}
+                  </ScrollView>
+
+                  <View style={[styles.commentsSheetComposerRow, { marginBottom: Platform.OS === 'ios' ? 6 : 0 }]}>
+                    <TextInput
+                      ref={commentInputRef}
+                      style={[styles.input, styles.feedCommentInput]}
+                      placeholder="Write a comment"
+                      placeholderTextColor="#8b949e"
+                      value={feedCommentDraftByEntry[selectedFeedItem.entryId] ?? ''}
+                      onChangeText={(value) => onFeedCommentDraftChange(selectedFeedItem.entryId, value)}
+                    />
+                    <TouchableOpacity
+                      style={[
+                        styles.iconButton,
+                        styles.iconButtonPrimary,
+                        (feedCommentSubmittingEntryId === selectedFeedItem.entryId || !(feedCommentDraftByEntry[selectedFeedItem.entryId] ?? '').trim()) && styles.buttonDisabled,
+                      ]}
+                      onPress={() => void handleSubmitComment(selectedFeedItem.entryId)}
+                      disabled={feedCommentSubmittingEntryId === selectedFeedItem.entryId || !(feedCommentDraftByEntry[selectedFeedItem.entryId] ?? '').trim()}
+                    >
+                      {feedCommentSubmittingEntryId === selectedFeedItem.entryId ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.buttonText}>➤</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : null}
+            </Pressable>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -303,7 +419,7 @@ export function HomeScreen(props: Props) {
         pickerStep={pickerStep}
         draftDateTime={draftDateTime}
         getEntryDateTimeValue={getEntryDateTimeValue}
-        onToggleDateEditor={() =>
+        onToggleDateEditor={() => {
           setShowDateEditor((prev) => {
             const next = !prev;
             if (next) {
@@ -314,48 +430,20 @@ export function HomeScreen(props: Props) {
               setDraftDateTime(null);
             }
             return next;
-          })
-        }
+          });
+        }}
         onPickerChange={onPickerChange}
         onGoToTimeStep={() => setPickerStep('time')}
-        onSaveDateTime={() => {
-          const next = draftDateTime ?? getEntryDateTimeValue();
-          onEntryDateChange(formatDateInput(next));
-          onEntryTimeChange(formatTimeInput(next));
-          setShowDateEditor(false);
-          setPickerStep('none');
-          setDraftDateTime(null);
-        }}
+        onSaveDateTime={onSaveDateTime}
         onBristolTypeChange={onBristolTypeChange}
         onRatingChange={onRatingChange}
         onNoteChange={onNoteChange}
-        onNoteFocus={() => {
-          const targetY = Math.max(0, entryActionsRowY - 120);
-          setTimeout(() => {
-            entryComposerScrollRef.current?.scrollTo({ x: 0, y: targetY, animated: true });
-          }, 120);
-          setTimeout(() => {
-            entryComposerScrollRef.current?.scrollTo({ x: 0, y: targetY, animated: true });
-          }, 260);
-        }}
-        onDateStepActionsLayout={(event) => setDateStepActionsRowY(event.nativeEvent.layout.y)}
-        onEntryActionsRowLayout={handleEntryActionsRowLayout}
+        onNoteFocus={() => {}}
+        onDateStepActionsLayout={() => {}}
+        onEntryActionsRowLayout={() => {}}
         onAddEntry={onAddEntry}
         onClose={onCloseComposer}
         scrollRef={entryComposerScrollRef}
-      />
-
-      <EntryActionsMenuModal
-        visible={Boolean(entryMenuId)}
-        menuTop={entryMenuAnchor.y + 6}
-        menuLeft={menuLeft}
-        menuWidth={menuWidth}
-        entries={entries}
-        entryMenuId={entryMenuId}
-        deletingEntryIds={deletingEntryIds}
-        onClose={() => setEntryMenuId(null)}
-        onEditEntry={onEditEntry}
-        onDeleteEntry={onDeleteEntry}
       />
     </>
   );

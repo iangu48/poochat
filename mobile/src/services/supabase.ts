@@ -87,6 +87,8 @@ type FeedRow = {
   occurred_at: string;
   bristol_type: number;
   rating: number;
+  latitude: number | null;
+  longitude: number | null;
   created_at: string;
 };
 
@@ -191,6 +193,8 @@ function asFeedItem(row: FeedRow): FeedItem {
     occurredAt: row.occurred_at,
     bristolType: row.bristol_type as FeedItem['bristolType'],
     rating: row.rating as FeedItem['rating'],
+    latitude: row.latitude == null ? null : Number(row.latitude),
+    longitude: row.longitude == null ? null : Number(row.longitude),
     createdAt: row.created_at,
   };
 }
@@ -554,7 +558,7 @@ export function createSupabaseFeedService(client: SupabaseClient): FeedService {
     async listMineAndFriends(limit = 100): Promise<FeedItem[]> {
       const { data, error } = await client
         .from('poop_entries')
-        .select('id,user_id,occurred_at,bristol_type,rating,created_at,profiles:user_id(username,display_name)')
+        .select('id,user_id,occurred_at,bristol_type,rating,latitude,longitude,created_at,profiles:user_id(username,display_name)')
         .order('occurred_at', { ascending: false })
         .limit(limit);
       if (error) throw error;

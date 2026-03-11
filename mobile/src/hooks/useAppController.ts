@@ -839,7 +839,7 @@ export function useAppController() {
       setActiveRoomId(roomId);
       setChatRoute('room');
       setSocialSection('friends');
-      setTab('social');
+      setTab('home');
       const rooms = await refreshRooms();
       await Promise.all([loadMessages(roomId), refreshPendingInvites(roomId), refreshActiveRoomRole(roomId)]);
       await refreshApprovalsRequired(rooms);

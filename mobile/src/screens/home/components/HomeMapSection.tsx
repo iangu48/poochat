@@ -11,18 +11,23 @@ const MarkerComponent = MapsLib?.Marker ?? null;
 const CircleComponent = MapsLib?.Circle ?? null;
 const CROSSHAIR_DEFAULT_X_RATIO = 0.5;
 const CROSSHAIR_DEFAULT_Y_RATIO = 0.33;
+const MARKER_FOCUS_X_RATIO = 0.5;
+const MARKER_FOCUS_Y_RATIO = 0.14;
 const RECENTER_TARGET_LONGITUDE_DELTA = 0.020;
 const RECENTER_ZOOM_TOLERANCE = 0.0006;
 
 type Props = {
   entries: PoopEntry[];
+  currentUserId: string;
+  selectedEntryId?: string | null;
   addEntryLoading: boolean;
   updatingEntryLocationIds: string[];
   fullScreen?: boolean;
   showComposer: boolean;
   onOpenComposer: () => void;
   onCloseComposer: () => void;
-  onOpenDetails: () => void;
+  onOpenFriends: () => void;
+  onPressEntryMarker?: (entryId: string) => void;
   onUpdateEntryLocation: (entryId: string, latitude: number, longitude: number) => void;
   onComposerLocationChange: (latitude: number, longitude: number, source?: 'gps' | 'manual') => void;
 };
@@ -30,13 +35,16 @@ type Props = {
 export function HomeMapSection(props: Props) {
   const {
     entries,
+    currentUserId,
+    selectedEntryId = null,
     addEntryLoading,
     updatingEntryLocationIds,
     fullScreen = false,
     showComposer,
     onOpenComposer,
     onCloseComposer,
-    onOpenDetails,
+    onOpenFriends,
+    onPressEntryMarker,
     onUpdateEntryLocation,
     onComposerLocationChange,
   } = props;
@@ -45,6 +53,7 @@ export function HomeMapSection(props: Props) {
   const initialRegionRef = useRef<MapRegion>(getInitialRegion(locations));
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [showCrosshairOverlay, setShowCrosshairOverlay] = useState(false);
+  const [selectedMarkerEntryId, setSelectedMarkerEntryId] = useState<string | null>(null);
   const [mapSize, setMapSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [mapFrameInWindow, setMapFrameInWindow] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [crosshairCenterInWindow, setCrosshairCenterInWindow] = useState<{ x: number; y: number } | null>(null);
@@ -52,6 +61,7 @@ export function HomeMapSection(props: Props) {
   const [mapIsMoving, setMapIsMoving] = useState(false);
   const mapRef = useRef<any>(null);
   const crosshairRef = useRef<View | null>(null);
+  const suppressNextMapPressClearRef = useRef(false);
   const composerDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const motionSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapIsMovingRef = useRef(false);
@@ -196,10 +206,17 @@ export function HomeMapSection(props: Props) {
   async function centerTargetAtCrosshair(
     target: { latitude: number; longitude: number },
     durationMs: number,
+    anchorRatio?: { x: number; y: number },
+    allowZoomIn = true,
   ): Promise<void> {
     programmaticMoveRef.current = true;
     const mapInstance = mapRef.current;
-    const crosshairPoint = getCrosshairPointInMap();
+    const crosshairPoint = anchorRatio
+      ? {
+          x: mapSize.width > 0 ? mapSize.width * anchorRatio.x : 0,
+          y: mapSize.height > 0 ? mapSize.height * anchorRatio.y : 0,
+        }
+      : getCrosshairPointInMap();
     const hasProjection = mapInstance
       && typeof mapInstance.pointForCoordinate === 'function'
       && typeof mapInstance.coordinateForPoint === 'function'
@@ -270,7 +287,7 @@ export function HomeMapSection(props: Props) {
       : 1.5;
     const targetLongitudeDelta = RECENTER_TARGET_LONGITUDE_DELTA;
     const targetLatitudeDelta = Math.max(0.0002, Math.abs(targetLongitudeDelta * currentAspectRatio));
-    const shouldZoomIn = region.longitudeDelta > (targetLongitudeDelta + RECENTER_ZOOM_TOLERANCE);
+    const shouldZoomIn = allowZoomIn && region.longitudeDelta > (targetLongitudeDelta + RECENTER_ZOOM_TOLERANCE);
 
     if (shouldZoomIn) {
       const latOffsetRatio = (target.latitude - nextRegion.latitude) / Math.max(region.latitudeDelta, 1e-9);
@@ -335,6 +352,20 @@ export function HomeMapSection(props: Props) {
   }, [showComposer]);
 
   useEffect(() => {
+    if (!selectedEntryId) {
+      setSelectedMarkerEntryId(null);
+      return;
+    }
+    setSelectedMarkerEntryId(selectedEntryId);
+  }, [selectedEntryId]);
+
+  useEffect(() => {
+    if (!selectedMarkerEntryId) return;
+    if (entryById.has(selectedMarkerEntryId)) return;
+    setSelectedMarkerEntryId(null);
+  }, [entryById, selectedMarkerEntryId]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       refreshCrosshairGeometry();
       void calibrateProjectionBias();
@@ -362,12 +393,48 @@ export function HomeMapSection(props: Props) {
     void centerTargetAtCrosshair(currentLocation, 420);
   }
 
+  function handleExpandAll(): void {
+    if (mapIsMovingRef.current) return;
+    if (locations.length === 0) return;
+    const coordinates = locations.map((location) => ({
+      latitude: location.latitude,
+      longitude: location.longitude,
+    }));
+    const mapInstance = mapRef.current;
+    const canFit = mapInstance && typeof mapInstance.fitToCoordinates === 'function';
+    if (canFit) {
+      programmaticMoveRef.current = true;
+      setMapMoving(true);
+      mapInstance.fitToCoordinates(coordinates, {
+        edgePadding: { top: 96, right: 72, bottom: 260, left: 72 },
+        animated: true,
+      });
+      return;
+    }
+
+    const nextRegion = getInitialRegion(locations);
+    programmaticMoveRef.current = true;
+    setMapMoving(true);
+    mapRef.current?.animateToRegion?.(nextRegion, 380);
+    setRegion(nextRegion);
+  }
+
   const addEntryDisabled = addEntryLoading || mapIsMoving;
   const findMeDisabled = !currentLocation || mapIsMoving;
+  const expandAllDisabled = locations.length === 0 || mapIsMoving;
 
   return (
     <View style={[styles.homeMapSection, fullScreen ? styles.homeMapSectionFull : null]}>
       <View style={[styles.homeMapCard, fullScreen ? styles.homeMapCardFull : null]}>
+        <View style={styles.homeMapTopActionsLeft}>
+          <TouchableOpacity
+            style={[styles.iconButton, styles.iconButtonGhost, styles.homeMapActionButton]}
+            onPress={onOpenFriends}
+            accessibilityLabel="Open friends"
+          >
+            <Ionicons name="people" size={18} color="#f0f6fc" />
+          </TouchableOpacity>
+        </View>
         <View style={styles.homeMapTopActions}>
           <TouchableOpacity
             style={[styles.iconButton, styles.iconButtonPrimary, addEntryDisabled ? styles.buttonDisabled : null, styles.homeMapActionButton]}
@@ -378,19 +445,20 @@ export function HomeMapSection(props: Props) {
             <Ionicons name="add" size={20} color="#ffffff" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.iconButton, styles.iconButtonGhost, styles.homeMapActionButton]}
-            onPress={onOpenDetails}
-            accessibilityLabel="Open home details"
-          >
-            <Ionicons name="stats-chart" size={18} color="#f0f6fc" />
-          </TouchableOpacity>
-          <TouchableOpacity
             style={[styles.iconButton, styles.iconButtonGhost, styles.homeMapActionButton, findMeDisabled ? styles.buttonDisabled : null]}
             onPress={handleFindMe}
             disabled={findMeDisabled}
             accessibilityLabel="Find my location"
           >
             <Ionicons name="locate" size={18} color="#f0f6fc" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconButton, styles.iconButtonGhost, styles.homeMapActionButton, expandAllDisabled ? styles.buttonDisabled : null]}
+            onPress={handleExpandAll}
+            disabled={expandAllDisabled}
+            accessibilityLabel="Show all entries"
+          >
+            <Ionicons name="globe-outline" size={18} color="#f0f6fc" />
           </TouchableOpacity>
         </View>
         <View
@@ -440,6 +508,9 @@ export function HomeMapSection(props: Props) {
               setMapMoving(true);
             }}
             onPress={() => {
+              if (suppressNextMapPressClearRef.current) {
+                suppressNextMapPressClearRef.current = false;
+              }
               if (showComposer) onCloseComposer();
             }}
           >
@@ -472,13 +543,12 @@ export function HomeMapSection(props: Props) {
                     coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
                     pinColor="#1f6feb"
                     onPress={() => {
-                      const next: MapRegion = {
-                        latitude: marker.latitude,
-                        longitude: marker.longitude,
-                        latitudeDelta: Math.max(0.015, region.latitudeDelta / 2),
-                        longitudeDelta: Math.max(0.015, region.longitudeDelta / 2),
-                      };
-                      mapRef.current?.animateToRegion?.(next, 320);
+                      void centerTargetAtCrosshair(
+                        { latitude: marker.latitude, longitude: marker.longitude },
+                        380,
+                        { x: MARKER_FOCUS_X_RATIO, y: MARKER_FOCUS_Y_RATIO },
+                        false,
+                      );
                     }}
                   />
                 );
@@ -486,13 +556,26 @@ export function HomeMapSection(props: Props) {
 
               const entry = entryById.get(marker.representativeEntryId);
               if (!entry) return null;
+              const canDragEntry = entry.userId === currentUserId;
               return (
                 <MarkerComponent
                   key={marker.key}
                   coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
-                  draggable
-                  tracksViewChanges={false}
+                  draggable={canDragEntry}
+                  tracksViewChanges
+                  onPress={() => {
+                    suppressNextMapPressClearRef.current = true;
+                    setSelectedMarkerEntryId(entry.id);
+                    onPressEntryMarker?.(entry.id);
+                    void centerTargetAtCrosshair(
+                      { latitude: marker.latitude, longitude: marker.longitude },
+                      380,
+                      { x: MARKER_FOCUS_X_RATIO, y: MARKER_FOCUS_Y_RATIO },
+                      false,
+                    );
+                  }}
                   onDragEnd={(event: { nativeEvent?: { coordinate?: { latitude?: number; longitude?: number } } }) => {
+                    if (!canDragEntry) return;
                     const latitude = Number(event?.nativeEvent?.coordinate?.latitude);
                     const longitude = Number(event?.nativeEvent?.coordinate?.longitude);
                     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
@@ -500,10 +583,24 @@ export function HomeMapSection(props: Props) {
                   }}
                 >
                   <View style={styles.mapPoopMarkerWrap}>
-                    <View style={[styles.mapPoopMarkerBubble, { backgroundColor: getPoopMarkerColor(Number(entry.bristolType)) }]}>
+                    <View
+                      style={[
+                        styles.mapPoopMarkerBubble,
+                        {
+                          backgroundColor: getPoopMarkerColor(Number(entry.bristolType)),
+                        },
+                        selectedMarkerEntryId === entry.id ? styles.mapPoopMarkerBubbleSelected : null,
+                      ]}
+                    >
                       <Text style={styles.mapPoopMarkerEmoji}>💩</Text>
                     </View>
-                    <View style={[styles.mapPoopMarkerTip, { backgroundColor: getPoopMarkerColor(Number(entry.bristolType)) }]} />
+                    <View
+                      style={[
+                        styles.mapPoopMarkerTip,
+                        { backgroundColor: getPoopMarkerColor(Number(entry.bristolType)) },
+                        selectedMarkerEntryId === entry.id ? styles.mapPoopMarkerTipSelected : null,
+                      ]}
+                    />
                   </View>
                 </MarkerComponent>
               );

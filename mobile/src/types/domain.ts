@@ -47,6 +47,8 @@ export type FeedItem = {
   occurredAt: string;
   bristolType: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   rating: 1 | 2 | 3 | 4 | 5;
+  latitude: number | null;
+  longitude: number | null;
   createdAt: string;
 };
 
