@@ -89,6 +89,7 @@ export default function App() {
   const homeProps = {
     themeMode: app.themeMode,
     currentUserId: app.currentUserId,
+    deletingEntryIds: app.deletingEntryIds,
     entries: app.entries,
     feedItems: app.feedItems,
     profilesById: app.profilesById,
@@ -120,6 +121,8 @@ export default function App() {
     onComposerLocationChange: (latitude: number, longitude: number, source?: 'gps' | 'manual') =>
       app.handleSetEntryComposerLocation(latitude, longitude, source),
     onCloseComposer: app.closeEntryComposer,
+    onEditEntry: app.handleStartEditEntry,
+    onDeleteEntry: (entryId: string) => app.handleDeleteEntry(entryId),
     onFeedCommentDraftChange: app.setFeedCommentDraft,
     onAddFeedComment: (entryId: string) => app.handleAddFeedComment(entryId),
     friendUsername: app.friendUsername,

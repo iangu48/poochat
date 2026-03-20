@@ -1387,7 +1387,9 @@ function combineDateTimeInputs(dateInput: string, timeInput: string): string {
   const time = timeInput.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Date must be in YYYY-MM-DD format.');
   if (!/^\d{2}:\d{2}$/.test(time)) throw new Error('Time must be in HH:mm format.');
-  const combined = new Date(`${date}T${time}:00`);
+  const [year, month, day] = date.split('-').map((value) => Number(value));
+  const [hour, minute] = time.split(':').map((value) => Number(value));
+  const combined = new Date(year, month - 1, day, hour, minute, 0, 0);
   if (Number.isNaN(combined.getTime())) throw new Error('Invalid date/time.');
   return combined.toISOString();
 }

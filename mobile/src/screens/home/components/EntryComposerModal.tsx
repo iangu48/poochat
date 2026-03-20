@@ -6,7 +6,7 @@ import type { RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { styles } from '../../styles';
-import { BristolVisual, RatingVisual } from './EntryVisuals';
+import { BristolTypeChip, BristolVisual, RatingVisual } from './EntryVisuals';
 import { formatDateTimeButtonLabel } from '../utils';
 import { getThemePalette, type ThemeMode } from '../../../theme';
 
@@ -20,7 +20,9 @@ type Props = {
   note: string;
   showDateEditor: boolean;
   pickerStep: 'none' | 'date' | 'time';
+  pickerMaxDate?: Date;
   draftDateTime: Date | null;
+  onSetDraftDateTime: (value: Date) => void;
   getEntryDateTimeValue: () => Date;
   onToggleDateEditor: () => void;
   onPickerChange: (mode: 'date' | 'time') => (event: DateTimePickerEvent, selectedDate?: Date) => void;
@@ -50,7 +52,9 @@ export function EntryComposerModal(props: Props) {
     bristolType,
     rating,
     note,
+    pickerMaxDate,
     draftDateTime,
+    onSetDraftDateTime,
     getEntryDateTimeValue,
     onPickerChange,
     onSaveDateTime,
@@ -65,6 +69,11 @@ export function EntryComposerModal(props: Props) {
   const colors = getThemePalette(themeMode);
 
   const effectiveDateTime = draftDateTime ?? getEntryDateTimeValue();
+  const datePickerValue = new Date(effectiveDateTime.getTime());
+  datePickerValue.setHours(12, 0, 0, 0);
+  const timePickerValue = new Date(effectiveDateTime.getTime());
+  const effectiveMinDate = new Date(2000, 0, 1);
+  const effectiveMaxDate = pickerMaxDate ?? new Date();
   const [mounted, setMounted] = useState(visible);
   const [stepIndex, setStepIndex] = useState(0);
   const [dateMode, setDateMode] = useState<'date' | 'time'>('date');
@@ -104,6 +113,37 @@ export function EntryComposerModal(props: Props) {
     if (!mounted) return;
     pagerRef.current?.setPage?.(stepIndex);
   }, [mounted, stepIndex]);
+
+  function setTimeValue(hours24: number, minutes: number): void {
+    const next = new Date(effectiveDateTime.getTime());
+    next.setHours(((hours24 % 24) + 24) % 24, ((minutes % 60) + 60) % 60, 0, 0);
+    const now = new Date();
+    const isToday =
+      next.getFullYear() === now.getFullYear() &&
+      next.getMonth() === now.getMonth() &&
+      next.getDate() === now.getDate();
+    if (isToday && next.getTime() > now.getTime()) {
+      return;
+    }
+    onSetDraftDateTime(next);
+  }
+
+  function shiftHour(delta: number): void {
+    setTimeValue(effectiveDateTime.getHours() + delta, effectiveDateTime.getMinutes());
+  }
+
+  function shiftMinute(delta: number): void {
+    const total = effectiveDateTime.getHours() * 60 + effectiveDateTime.getMinutes() + delta;
+    const normalized = ((total % 1440) + 1440) % 1440;
+    setTimeValue(Math.floor(normalized / 60), normalized % 60);
+  }
+
+  function setPeriod(period: 'AM' | 'PM'): void {
+    const currentHour = effectiveDateTime.getHours();
+    const isPm = currentHour >= 12;
+    if ((period === 'PM' && isPm) || (period === 'AM' && !isPm)) return;
+    setTimeValue((currentHour + 12) % 24, effectiveDateTime.getMinutes());
+  }
 
   function goToStep(next: number): void {
     setStepIndex(Math.max(0, Math.min(TOTAL_STEPS - 1, next)));
@@ -185,6 +225,50 @@ export function EntryComposerModal(props: Props) {
                   maximumTrackTintColor={colors.border}
                   thumbTintColor="#58a6ff"
                 />
+                <View style={styles.bristolQuickSelectWrap}>
+                  <View style={styles.bristolQuickSelectRowTop}>
+                    {[1, 3, 5, 7].map((value) => {
+                      const isSelected = Number(bristolType) === value;
+                      return (
+                        <TouchableOpacity
+                          key={`bristol-quick-${value}`}
+                          style={[
+                            styles.bristolQuickSelectButtonVisual,
+                            {
+                              backgroundColor: isSelected ? colors.primary : colors.surfaceAlt,
+                              borderColor: isSelected ? colors.primaryBorder : colors.border,
+                            },
+                          ]}
+                          onPress={() => onBristolTypeChange(String(value))}
+                          accessibilityLabel={`Set Bristol type ${value}`}
+                        >
+                          <BristolTypeChip typeValue={value} themeMode={themeMode} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <View style={styles.bristolQuickSelectRowBottom}>
+                    {[2, 4, 6].map((value) => {
+                      const isSelected = Number(bristolType) === value;
+                      return (
+                        <TouchableOpacity
+                          key={`bristol-quick-${value}`}
+                          style={[
+                            styles.bristolQuickSelectButtonVisual,
+                            {
+                              backgroundColor: isSelected ? colors.primary : colors.surfaceAlt,
+                              borderColor: isSelected ? colors.primaryBorder : colors.border,
+                            },
+                          ]}
+                          onPress={() => onBristolTypeChange(String(value))}
+                          accessibilityLabel={`Set Bristol type ${value}`}
+                        >
+                          <BristolTypeChip typeValue={value} themeMode={themeMode} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
               </View>
 
               <View key="step-1" style={styles.entryStepPane}>
@@ -234,20 +318,78 @@ export function EntryComposerModal(props: Props) {
                 <View style={[styles.dateTimePickerWrap, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
                   {dateMode === 'date' ? (
                     <DateTimePicker
-                      value={effectiveDateTime}
+                      key="entry-picker-date"
+                      value={datePickerValue}
                       mode="date"
                       display={Platform.OS === 'ios' ? 'spinner' : 'spinner'}
+                      minimumDate={effectiveMinDate}
+                      maximumDate={effectiveMaxDate}
                       textColor={colors.text}
                       onChange={onPickerChange('date')}
                     />
                   ) : (
-                    <DateTimePicker
-                      value={effectiveDateTime}
-                      mode="time"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      textColor={colors.text}
-                      onChange={onPickerChange('time')}
-                    />
+                    Platform.OS === 'ios' ? (
+                      <View style={[styles.timeEditorWrap, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+                        <View style={styles.timeEditorRow}>
+                          <TouchableOpacity style={[styles.timeEditorButton, { borderColor: colors.border }]} onPress={() => shiftHour(1)}>
+                            <Ionicons name="chevron-up" size={16} color={colors.text} />
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.timeEditorButton, { borderColor: colors.border }]} onPress={() => shiftMinute(1)}>
+                            <Ionicons name="chevron-up" size={16} color={colors.text} />
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.timeEditorValuesRow}>
+                          <Text style={[styles.timeEditorValue, { color: colors.text }]}>
+                            {String((((effectiveDateTime.getHours() + 11) % 12) + 1)).padStart(2, '0')}
+                          </Text>
+                          <Text style={[styles.timeEditorColon, { color: colors.mutedText }]}>:</Text>
+                          <Text style={[styles.timeEditorValue, { color: colors.text }]}>
+                            {String(effectiveDateTime.getMinutes()).padStart(2, '0')}
+                          </Text>
+                          <View style={styles.timeEditorPeriodWrap}>
+                            <TouchableOpacity
+                              style={[
+                                styles.timeEditorPeriodButton,
+                                { borderColor: colors.border },
+                                effectiveDateTime.getHours() < 12 ? { backgroundColor: colors.primary, borderColor: colors.primaryBorder } : null,
+                              ]}
+                              onPress={() => setPeriod('AM')}
+                            >
+                              <Text style={[styles.timeEditorPeriodText, { color: effectiveDateTime.getHours() < 12 ? '#fff' : colors.text }]}>AM</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[
+                                styles.timeEditorPeriodButton,
+                                { borderColor: colors.border },
+                                effectiveDateTime.getHours() >= 12 ? { backgroundColor: colors.primary, borderColor: colors.primaryBorder } : null,
+                              ]}
+                              onPress={() => setPeriod('PM')}
+                            >
+                              <Text style={[styles.timeEditorPeriodText, { color: effectiveDateTime.getHours() >= 12 ? '#fff' : colors.text }]}>PM</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        <View style={styles.timeEditorRow}>
+                          <TouchableOpacity style={[styles.timeEditorButton, { borderColor: colors.border }]} onPress={() => shiftHour(-1)}>
+                            <Ionicons name="chevron-down" size={16} color={colors.text} />
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.timeEditorButton, { borderColor: colors.border }]} onPress={() => shiftMinute(-1)}>
+                            <Ionicons name="chevron-down" size={16} color={colors.text} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <DateTimePicker
+                        key="entry-picker-time"
+                        value={timePickerValue}
+                        mode="time"
+                        display="default"
+                        textColor={colors.text}
+                        onChange={onPickerChange('time')}
+                      />
+                    )
                   )}
                 </View>
               </View>

@@ -192,6 +192,15 @@ export function MonthOverviewSection(props: Props) {
                     ]
                   : null,
                 cell.inCurrentMonth && cell.isToday ? styles.calendarCellToday : null,
+                cell.inCurrentMonth && cell.isToday
+                  ? {
+                      backgroundColor:
+                        themeMode === 'light'
+                          ? (cell.rating == null ? '#e8f1ff' : undefined)
+                          : (cell.rating == null ? 'rgba(88, 166, 255, 0.20)' : undefined),
+                      borderColor: themeMode === 'light' ? '#2d74da' : '#58a6ff',
+                    }
+                  : null,
                 selectedDateKey === cell.dateKey
                   ? [
                       styles.calendarCellSelected,
@@ -220,7 +229,15 @@ export function MonthOverviewSection(props: Props) {
                   { color: colors.text },
                   !cell.inCurrentMonth ? [styles.calendarCellTextOutside, { color: colors.mutedText }] : null,
                   cell.inCurrentMonth && cell.isToday
-                    ? [styles.calendarCellTextToday, { color: themeMode === 'light' ? '#184f9f' : undefined }]
+                    ? [
+                        styles.calendarCellTextToday,
+                        {
+                          color:
+                            themeMode === 'light'
+                              ? '#184f9f'
+                              : (cell.rating == null ? '#eaf4ff' : '#ffffff'),
+                        },
+                      ]
                     : null,
                   selectedDateKey === cell.dateKey && themeMode === 'light' ? { color: '#1a4f9f' } : null,
                 ]}

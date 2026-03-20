@@ -79,6 +79,7 @@ export function OverviewScreen(props: Props) {
   const [showDateEditor, setShowDateEditor] = useState(false);
   const [pickerStep, setPickerStep] = useState<'none' | 'date' | 'time'>('none');
   const [draftDateTime, setDraftDateTime] = useState<Date | null>(null);
+  const [pickerMaxDate, setPickerMaxDate] = useState<Date>(new Date());
   const entryComposerScrollRef = useRef<ScrollView | null>(null);
 
   const now = useMemo(() => new Date(), []);
@@ -105,23 +106,57 @@ export function OverviewScreen(props: Props) {
   );
 
   function getEntryDateTimeValue(): Date {
-    const parsed = new Date(`${entryDate.trim()}T${entryTime.trim()}:00`);
-    if (Number.isNaN(parsed.getTime())) return new Date();
-    return parsed;
+    return parseLocalDateTimeInputs(entryDate, entryTime) ?? new Date();
   }
 
   function onPickerChange(mode: 'date' | 'time') {
     return (event: DateTimePickerEvent, selectedDate?: Date) => {
+      console.log(
+        '[picker:overview:event]',
+        JSON.stringify({
+          mode,
+          type: event.type,
+          selectedDate: selectedDate ? selectedDate.toISOString() : null,
+          selectedEpoch: selectedDate ? selectedDate.getTime() : null,
+          entryDate,
+          entryTime,
+          draftDateTime: draftDateTime ? draftDateTime.toISOString() : null,
+        }),
+      );
       if (event.type === 'dismissed') return;
       const base = draftDateTime ?? getEntryDateTimeValue();
-      if (!selectedDate) return;
+      const now = new Date();
+      const todayDateKey = formatDateInput(now);
       if (mode === 'date') {
-        const next = new Date(base);
-        next.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+        const picked = resolvePickerDate(selectedDate);
+        if (!picked) {
+          console.log('[picker:overview:ignored]', JSON.stringify({ mode, reason: 'invalid-selectedDate' }));
+          return;
+        }
+        const next = new Date(base.getTime());
+        next.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
+        next.setHours(base.getHours(), base.getMinutes(), 0, 0);
+        if (formatDateInput(next) > todayDateKey) {
+          // Keep previous value when future date is attempted.
+          console.log('[picker:overview:rejected]', JSON.stringify({ mode, reason: 'future-date', next: next.toISOString() }));
+          return;
+        }
+        console.log('[picker:overview:accepted]', JSON.stringify({ mode, next: next.toISOString() }));
         setDraftDateTime(next);
       } else {
-        const next = new Date(base);
-        next.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+        const timeParts = resolvePickerTime(selectedDate);
+        if (!timeParts) {
+          console.log('[picker:overview:ignored]', JSON.stringify({ mode, reason: 'invalid-time-selectedDate' }));
+          return;
+        }
+        const next = new Date(base.getTime());
+        next.setHours(timeParts.hours, timeParts.minutes, 0, 0);
+        if (formatDateInput(next) === todayDateKey && next.getTime() > now.getTime()) {
+          // Keep previous value when future time is attempted for today.
+          console.log('[picker:overview:rejected]', JSON.stringify({ mode, reason: 'future-time', next: next.toISOString() }));
+          return;
+        }
+        console.log('[picker:overview:accepted]', JSON.stringify({ mode, next: next.toISOString() }));
         setDraftDateTime(next);
       }
     };
@@ -129,8 +164,10 @@ export function OverviewScreen(props: Props) {
 
   function onSaveDateTime(): void {
     const selected = draftDateTime ?? getEntryDateTimeValue();
-    onEntryDateChange(formatDateInput(selected));
-    onEntryTimeChange(formatTimeInput(selected));
+    const now = new Date();
+    const clamped = selected.getTime() > now.getTime() ? now : selected;
+    onEntryDateChange(formatDateInput(clamped));
+    onEntryTimeChange(formatTimeInput(clamped));
   }
 
   return (
@@ -196,7 +233,9 @@ export function OverviewScreen(props: Props) {
         note={note}
         showDateEditor={showDateEditor}
         pickerStep={pickerStep}
+        pickerMaxDate={pickerMaxDate}
         draftDateTime={draftDateTime}
+        onSetDraftDateTime={setDraftDateTime}
         getEntryDateTimeValue={getEntryDateTimeValue}
         onToggleDateEditor={() => {
           setShowDateEditor((prev) => {
@@ -204,6 +243,7 @@ export function OverviewScreen(props: Props) {
             if (next) {
               setDraftDateTime(getEntryDateTimeValue());
               setPickerStep('date');
+              setPickerMaxDate(new Date());
             } else {
               setPickerStep('none');
               setDraftDateTime(null);
@@ -228,4 +268,40 @@ export function OverviewScreen(props: Props) {
       />
     </View>
   );
+}
+
+function resolvePickerDate(selectedDate?: Date): Date | null {
+  const selected = selectedDate ?? null;
+  if (selected && !Number.isNaN(selected.getTime()) && selected.getTime() > 0 && selected.getFullYear() >= 2000) {
+    return selected;
+  }
+  return null;
+}
+
+function resolvePickerTime(
+  selectedDate?: Date,
+): { hours: number; minutes: number } | null {
+  const selected = selectedDate ?? null;
+  if (!selected || Number.isNaN(selected.getTime())) return null;
+  if (selected.getTime() === 0) return null;
+  // Ignore epoch-anchored synthetic values from iOS mount transitions.
+  if (selected.getFullYear() < 2000) return null;
+  return {
+    hours: selected.getHours(),
+    minutes: selected.getMinutes(),
+  };
+}
+
+function parseLocalDateTimeInputs(dateInput: string, timeInput: string): Date | null {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateInput.trim());
+  const timeMatch = /^(\d{2}):(\d{2})$/.exec(timeInput.trim());
+  if (!dateMatch || !timeMatch) return null;
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]) - 1;
+  const day = Number(dateMatch[3]);
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+  const parsed = new Date(year, month, day, hour, minute, 0, 0);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
 }

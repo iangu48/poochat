@@ -32,6 +32,8 @@ import { formatDateInput, formatEntryTimestamp, formatTimeInput, getRatingEmoji,
 type Props = {
   themeMode: ThemeMode;
   currentUserId: string;
+  entries: PoopEntry[];
+  deletingEntryIds: string[];
   feedItems: FeedItem[];
   profilesById: Record<string, Profile>;
   feedCommentsByEntry: Record<string, FeedComment[]>;
@@ -66,6 +68,8 @@ type Props = {
   onAddEntry: () => void;
   onComposerLocationChange: (latitude: number, longitude: number, source?: 'gps' | 'manual') => void;
   onCloseComposer: () => void;
+  onEditEntry: (entry: PoopEntry) => void;
+  onDeleteEntry: (entryId: string) => Promise<void>;
   onFeedCommentDraftChange: (entryId: string, value: string) => void;
   onAddFeedComment: (entryId: string) => Promise<void>;
   onFriendUsernameChange: (value: string) => void;
@@ -77,6 +81,8 @@ export function HomeScreen(props: Props) {
   const {
     themeMode,
     currentUserId,
+    entries,
+    deletingEntryIds,
     feedItems,
     profilesById,
     feedCommentsByEntry,
@@ -111,6 +117,8 @@ export function HomeScreen(props: Props) {
     onAddEntry,
     onComposerLocationChange,
     onCloseComposer,
+    onEditEntry,
+    onDeleteEntry,
     onFeedCommentDraftChange,
     onAddFeedComment,
     onFriendUsernameChange,
@@ -128,6 +136,7 @@ export function HomeScreen(props: Props) {
   const [showDateEditor, setShowDateEditor] = useState(false);
   const [pickerStep, setPickerStep] = useState<'none' | 'date' | 'time'>('none');
   const [draftDateTime, setDraftDateTime] = useState<Date | null>(null);
+  const [pickerMaxDate, setPickerMaxDate] = useState<Date>(new Date());
 
   const todayKey = formatDateInput(new Date());
   const todayFeedItems = useMemo(
@@ -171,23 +180,57 @@ export function HomeScreen(props: Props) {
   }, []);
 
   function getEntryDateTimeValue(): Date {
-    const parsed = new Date(`${entryDate.trim()}T${entryTime.trim()}:00`);
-    if (Number.isNaN(parsed.getTime())) return new Date();
-    return parsed;
+    return parseLocalDateTimeInputs(entryDate, entryTime) ?? new Date();
   }
 
   function onPickerChange(mode: 'date' | 'time') {
     return (event: DateTimePickerEvent, selectedDate?: Date) => {
+      console.log(
+        '[picker:home:event]',
+        JSON.stringify({
+          mode,
+          type: event.type,
+          selectedDate: selectedDate ? selectedDate.toISOString() : null,
+          selectedEpoch: selectedDate ? selectedDate.getTime() : null,
+          entryDate,
+          entryTime,
+          draftDateTime: draftDateTime ? draftDateTime.toISOString() : null,
+        }),
+      );
       if (event.type === 'dismissed') return;
       const base = draftDateTime ?? getEntryDateTimeValue();
-      if (!selectedDate) return;
+      const now = new Date();
+      const todayDateKey = formatDateInput(now);
       if (mode === 'date') {
-        const next = new Date(base);
-        next.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+        const picked = resolvePickerDate(selectedDate);
+        if (!picked) {
+          console.log('[picker:home:ignored]', JSON.stringify({ mode, reason: 'invalid-selectedDate' }));
+          return;
+        }
+        const next = new Date(base.getTime());
+        next.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
+        next.setHours(base.getHours(), base.getMinutes(), 0, 0);
+        if (formatDateInput(next) > todayDateKey) {
+          // Keep previous value when future date is attempted.
+          console.log('[picker:home:rejected]', JSON.stringify({ mode, reason: 'future-date', next: next.toISOString() }));
+          return;
+        }
+        console.log('[picker:home:accepted]', JSON.stringify({ mode, next: next.toISOString() }));
         setDraftDateTime(next);
       } else {
-        const next = new Date(base);
-        next.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+        const timeParts = resolvePickerTime(selectedDate);
+        if (!timeParts) {
+          console.log('[picker:home:ignored]', JSON.stringify({ mode, reason: 'invalid-time-selectedDate' }));
+          return;
+        }
+        const next = new Date(base.getTime());
+        next.setHours(timeParts.hours, timeParts.minutes, 0, 0);
+        if (formatDateInput(next) === todayDateKey && next.getTime() > now.getTime()) {
+          // Keep previous value when future time is attempted for today.
+          console.log('[picker:home:rejected]', JSON.stringify({ mode, reason: 'future-time', next: next.toISOString() }));
+          return;
+        }
+        console.log('[picker:home:accepted]', JSON.stringify({ mode, next: next.toISOString() }));
         setDraftDateTime(next);
       }
     };
@@ -195,8 +238,10 @@ export function HomeScreen(props: Props) {
 
   function onSaveDateTime(): void {
     const selected = draftDateTime ?? getEntryDateTimeValue();
-    onEntryDateChange(formatDateInput(selected));
-    onEntryTimeChange(formatTimeInput(selected));
+    const now = new Date();
+    const clamped = selected.getTime() > now.getTime() ? now : selected;
+    onEntryDateChange(formatDateInput(clamped));
+    onEntryTimeChange(formatTimeInput(clamped));
   }
 
   async function handleSendFriendRequestPress(): Promise<void> {
@@ -209,6 +254,9 @@ export function HomeScreen(props: Props) {
       commentInputRef.current?.focus?.();
     });
   }
+
+  const selectedIsMine = Boolean(selectedFeedItem && selectedFeedItem.subjectId === currentUserId);
+  const selectedEntryDeleting = Boolean(selectedFeedItem && deletingEntryIds.includes(selectedFeedItem.entryId));
 
   return (
     <>
@@ -382,6 +430,48 @@ export function HomeScreen(props: Props) {
                     <Text style={[styles.muted, { color: colors.mutedText }]}>
                       {selectedComments.length} comment{selectedComments.length === 1 ? '' : 's'}
                     </Text>
+                    {selectedIsMine ? (
+                      <View style={styles.feedActionsRow}>
+                        <TouchableOpacity
+                          style={[styles.feedActionButton, styles.iconButtonGhost, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                          onPress={() => {
+                            if (!selectedFeedItem) return;
+                            const source = entries.find((entry) => entry.id === selectedFeedItem.entryId)
+                              ?? todayMapEntries.find((entry) => entry.id === selectedFeedItem.entryId);
+                            if (!source) return;
+                            setSelectedFeedEntryId(null);
+                            onEditEntry(source);
+                          }}
+                          accessibilityLabel="Edit entry"
+                        >
+                          <Ionicons name="create-outline" size={14} color={colors.text} />
+                          <Text style={[styles.feedActionText, { color: colors.text }]}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.feedActionButton,
+                            styles.iconButtonGhost,
+                            { backgroundColor: colors.surface, borderColor: colors.border },
+                            selectedEntryDeleting ? styles.buttonDisabled : null,
+                          ]}
+                          onPress={() => {
+                            if (!selectedFeedItem || selectedEntryDeleting) return;
+                            void onDeleteEntry(selectedFeedItem.entryId);
+                          }}
+                          disabled={selectedEntryDeleting}
+                          accessibilityLabel="Delete entry"
+                        >
+                          {selectedEntryDeleting ? (
+                            <ActivityIndicator size="small" color="#ff7b72" />
+                          ) : (
+                            <Ionicons name="trash-outline" size={14} color="#ff7b72" />
+                          )}
+                          <Text style={[styles.feedActionText, { color: '#ff7b72' }]}>
+                            {selectedEntryDeleting ? 'Deleting...' : 'Delete'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
                   </View>
 
                   <ScrollView
@@ -402,13 +492,27 @@ export function HomeScreen(props: Props) {
                     {selectedComments.length === 0 ? <Text style={[styles.muted, { color: colors.mutedText }]}>No comments yet.</Text> : null}
                   </ScrollView>
 
-                  <View style={[styles.commentsSheetComposerRow, { marginBottom: Platform.OS === 'ios' ? 6 : 0 }]}>
+                  <View
+                    style={[
+                      styles.commentsSheetComposerRow,
+                      {
+                        marginBottom: Platform.OS === 'ios' ? 6 : 0,
+                        backgroundColor: colors.surface,
+                        borderTopColor: colors.border,
+                      },
+                    ]}
+                  >
                     <TextInput
                       ref={commentInputRef}
                       style={[
                         styles.input,
                         styles.feedCommentInput,
-                        { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border },
+                        {
+                          backgroundColor: themeMode === 'light' ? '#ffffff' : colors.inputBackground,
+                          color: colors.text,
+                          borderColor: colors.border,
+                          borderWidth: 1,
+                        },
                       ]}
                       placeholder="Write a comment"
                       placeholderTextColor={colors.mutedText}
@@ -419,6 +523,7 @@ export function HomeScreen(props: Props) {
                       style={[
                         styles.iconButton,
                         styles.iconButtonPrimary,
+                        { backgroundColor: colors.primary, borderColor: colors.primaryBorder },
                         (feedCommentSubmittingEntryId === selectedFeedItem.entryId || !(feedCommentDraftByEntry[selectedFeedItem.entryId] ?? '').trim()) && styles.buttonDisabled,
                       ]}
                       onPress={() => void handleSubmitComment(selectedFeedItem.entryId)}
@@ -448,12 +553,15 @@ export function HomeScreen(props: Props) {
         note={note}
         showDateEditor={showDateEditor}
         pickerStep={pickerStep}
+        pickerMaxDate={pickerMaxDate}
         draftDateTime={draftDateTime}
+        onSetDraftDateTime={setDraftDateTime}
         getEntryDateTimeValue={getEntryDateTimeValue}
         onToggleDateEditor={() => {
           setShowDateEditor((prev) => {
             const next = !prev;
             if (next) {
+              setPickerMaxDate(new Date());
               setDraftDateTime(getEntryDateTimeValue());
               setPickerStep('date');
             } else {
@@ -478,4 +586,40 @@ export function HomeScreen(props: Props) {
       />
     </>
   );
+}
+
+function resolvePickerDate(selectedDate?: Date): Date | null {
+  const selected = selectedDate ?? null;
+  if (selected && !Number.isNaN(selected.getTime()) && selected.getTime() > 0 && selected.getFullYear() >= 2000) {
+    return selected;
+  }
+  return null;
+}
+
+function resolvePickerTime(
+  selectedDate?: Date,
+): { hours: number; minutes: number } | null {
+  const selected = selectedDate ?? null;
+  if (!selected || Number.isNaN(selected.getTime())) return null;
+  if (selected.getTime() === 0) return null;
+  // Ignore epoch-anchored synthetic values from iOS mount transitions.
+  if (selected.getFullYear() < 2000) return null;
+  return {
+    hours: selected.getHours(),
+    minutes: selected.getMinutes(),
+  };
+}
+
+function parseLocalDateTimeInputs(dateInput: string, timeInput: string): Date | null {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateInput.trim());
+  const timeMatch = /^(\d{2}):(\d{2})$/.exec(timeInput.trim());
+  if (!dateMatch || !timeMatch) return null;
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]) - 1;
+  const day = Number(dateMatch[3]);
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+  const parsed = new Date(year, month, day, hour, minute, 0, 0);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
 }
