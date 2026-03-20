@@ -77,6 +77,7 @@ export function useAppController() {
   const [entryError, setEntryError] = useState('');
   const [bristolType, setBristolType] = useState('4');
   const [rating, setRating] = useState('3');
+  const [volume, setVolume] = useState('2');
   const [note, setNote] = useState('');
   const [entryDate, setEntryDate] = useState(formatDateInput(new Date()));
   const [entryTime, setEntryTime] = useState(formatTimeInput(new Date()));
@@ -775,12 +776,14 @@ export function useAppController() {
     try {
       const typeValue = clampInt(Number(bristolType), 1, 7);
       const ratingValue = clampInt(Number(rating), 1, 5);
+      const volumeValue = clampInt(Number(volume), 0, 4);
       const occurredAtIso = combineDateTimeInputs(entryDate, entryTime);
       if (editingEntryId) {
         await poopService.updateMine(editingEntryId, {
           occurredAt: occurredAtIso,
           bristolType: typeValue as 1 | 2 | 3 | 4 | 5 | 6 | 7,
           rating: ratingValue as 1 | 2 | 3 | 4 | 5,
+          volume: volumeValue as 0 | 1 | 2 | 3 | 4,
           note: note.trim() || undefined,
         });
       } else {
@@ -789,6 +792,7 @@ export function useAppController() {
           occurredAt: occurredAtIso,
           bristolType: typeValue as 1 | 2 | 3 | 4 | 5 | 6 | 7,
           rating: ratingValue as 1 | 2 | 3 | 4 | 5,
+          volume: volumeValue as 0 | 1 | 2 | 3 | 4,
           note: note.trim() || undefined,
           latitude: currentLocation?.latitude,
           longitude: currentLocation?.longitude,
@@ -812,6 +816,7 @@ export function useAppController() {
     setEditingEntryId(null);
     setBristolType('4');
     setRating('3');
+    setVolume('2');
     setNote('');
     const now = new Date();
     setEntryDate(formatDateInput(now));
@@ -831,6 +836,7 @@ export function useAppController() {
     setEditingEntryId(entry.id);
     setBristolType(String(entry.bristolType));
     setRating(String(entry.rating));
+    setVolume(String(entry.volume));
     setNote(entry.note ?? '');
     const occurredAtDate = new Date(entry.occurredAt);
     setEntryDate(formatDateInput(occurredAtDate));
@@ -1324,6 +1330,8 @@ export function useAppController() {
     setBristolType,
     rating,
     setRating,
+    volume,
+    setVolume,
     note,
     setNote,
     entryDate,

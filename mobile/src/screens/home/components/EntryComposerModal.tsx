@@ -9,6 +9,7 @@ import { styles } from '../../styles';
 import { BristolTypeChip, BristolVisual, RatingVisual } from './EntryVisuals';
 import { formatDateTimeButtonLabel } from '../utils';
 import { getThemePalette, type ThemeMode } from '../../../theme';
+import { POOP_VOLUME_OPTIONS } from '../../../types/domain';
 
 type Props = {
   themeMode: ThemeMode;
@@ -17,6 +18,7 @@ type Props = {
   isEditingEntry: boolean;
   bristolType: string;
   rating: string;
+  volume: string;
   note: string;
   showDateEditor: boolean;
   pickerStep: 'none' | 'date' | 'time';
@@ -30,6 +32,7 @@ type Props = {
   onSaveDateTime: () => void;
   onBristolTypeChange: (value: string) => void;
   onRatingChange: (value: string) => void;
+  onVolumeChange: (value: string) => void;
   onNoteChange: (value: string) => void;
   onNoteFocus: () => void;
   onDateStepActionsLayout: (event: any) => void;
@@ -41,7 +44,7 @@ type Props = {
   bottomOffset?: number;
 };
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 export function EntryComposerModal(props: Props) {
   const {
@@ -51,6 +54,7 @@ export function EntryComposerModal(props: Props) {
     isEditingEntry,
     bristolType,
     rating,
+    volume,
     note,
     pickerMaxDate,
     draftDateTime,
@@ -60,6 +64,7 @@ export function EntryComposerModal(props: Props) {
     onSaveDateTime,
     onBristolTypeChange,
     onRatingChange,
+    onVolumeChange,
     onNoteChange,
     onAddEntry,
     onClose,
@@ -158,12 +163,12 @@ export function EntryComposerModal(props: Props) {
   }
 
   function handleNextOrSave(): void {
-    if (stepIndex === 2) {
+    if (stepIndex === 3) {
       onSaveDateTime();
-      goToStep(3);
+      goToStep(4);
       return;
     }
-    if (stepIndex === 3) {
+    if (stepIndex === 4) {
       onAddEntry();
       return;
     }
@@ -205,7 +210,7 @@ export function EntryComposerModal(props: Props) {
               initialPage={0}
               onPageSelected={(event: any) => {
                 const nextStep = event.nativeEvent.position;
-                if (stepRef.current === 2 && nextStep !== 2) {
+                if (stepRef.current === 3 && nextStep !== 3) {
                   onSaveDateTime();
                 }
                 setStepIndex(nextStep);
@@ -277,6 +282,53 @@ export function EntryComposerModal(props: Props) {
               </View>
 
               <View key="step-2" style={styles.entryStepPane}>
+                <Text style={[styles.label, { color: colors.text }]}>Volume</Text>
+                <View style={[styles.volumeVisualCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+                  <Text style={[styles.volumeVisualEmoji, { color: colors.text }]}>
+                    {POOP_VOLUME_OPTIONS.find((option) => option.value === Number(volume))?.emoji ?? '◻️'}
+                  </Text>
+                  <Text style={[styles.volumeVisualLabel, { color: colors.text }]}>
+                    {POOP_VOLUME_OPTIONS.find((option) => option.value === Number(volume))?.label ?? 'Medium'}
+                  </Text>
+                </View>
+                <Slider
+                  minimumValue={0}
+                  maximumValue={4}
+                  step={1}
+                  tapToSeek
+                  value={Number(volume)}
+                  onValueChange={(value) => onVolumeChange(String(Math.round(value)))}
+                  minimumTrackTintColor={colors.primary}
+                  maximumTrackTintColor={colors.border}
+                  thumbTintColor="#58a6ff"
+                />
+                <View style={styles.volumeOptionGrid}>
+                  {POOP_VOLUME_OPTIONS.map((option) => {
+                    const isSelected = Number(volume) === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={`volume-${option.value}`}
+                        style={[
+                          styles.volumeOptionButton,
+                          {
+                            backgroundColor: isSelected ? colors.primary : colors.surfaceAlt,
+                            borderColor: isSelected ? colors.primaryBorder : colors.border,
+                          },
+                        ]}
+                        onPress={() => onVolumeChange(String(option.value))}
+                        accessibilityLabel={`Set volume to ${option.label}`}
+                      >
+                        <Text style={styles.volumeOptionEmoji}>{option.emoji}</Text>
+                        <Text style={[styles.volumeOptionText, { color: isSelected ? '#ffffff' : colors.text }]} numberOfLines={2}>
+                          {option.shortLabel}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View key="step-3" style={styles.entryStepPane}>
                 <Text style={[styles.label, { color: colors.text }]}>Date & Time</Text>
                 <Text style={[styles.muted, { color: colors.mutedText }]}>{formatDateTimeButtonLabel(effectiveDateTime)}</Text>
                 <View style={styles.entryDateToggleRow}>
@@ -394,7 +446,7 @@ export function EntryComposerModal(props: Props) {
                 </View>
               </View>
 
-              <View key="step-3" style={styles.entryStepPane}>
+              <View key="step-4" style={styles.entryStepPane}>
                 <Text style={[styles.label, { color: colors.text }]}>Note (optional)</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
@@ -436,7 +488,7 @@ export function EntryComposerModal(props: Props) {
                 accessibilityLabel={
                   addEntryLoading
                     ? 'Saving'
-                    : stepIndex === 3
+                    : stepIndex === 4
                       ? (isEditingEntry ? 'Save changes' : 'Save entry')
                       : 'Next'
                 }
@@ -444,7 +496,7 @@ export function EntryComposerModal(props: Props) {
                 {addEntryLoading ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Ionicons name={stepIndex === 3 ? 'checkmark' : 'arrow-forward'} size={18} color="#fff" />
+                  <Ionicons name={stepIndex === 4 ? 'checkmark' : 'arrow-forward'} size={18} color="#fff" />
                 )}
               </TouchableOpacity>
             </View>

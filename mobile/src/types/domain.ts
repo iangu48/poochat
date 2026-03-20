@@ -15,6 +15,7 @@ export type PoopEntry = {
   occurredAt: string;
   bristolType: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   rating: 1 | 2 | 3 | 4 | 5;
+  volume: 0 | 1 | 2 | 3 | 4;
   note: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -47,10 +48,26 @@ export type FeedItem = {
   occurredAt: string;
   bristolType: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   rating: 1 | 2 | 3 | 4 | 5;
+  volume: 0 | 1 | 2 | 3 | 4;
   latitude: number | null;
   longitude: number | null;
   createdAt: string;
 };
+
+export type VolumeOption = {
+  value: 0 | 1 | 2 | 3 | 4;
+  emoji: string;
+  label: string;
+  shortLabel: string;
+};
+
+export const POOP_VOLUME_OPTIONS: VolumeOption[] = [
+  { value: 0, emoji: '💨', label: 'Just gas', shortLabel: 'Gas' },
+  { value: 1, emoji: '🫐', label: 'Tiny, blueberry-sized', shortLabel: 'Blueberry' },
+  { value: 2, emoji: '🥝', label: 'Small, kiwi-sized', shortLabel: 'Kiwi' },
+  { value: 3, emoji: '🥔', label: 'Medium, potato-sized', shortLabel: 'Potato' },
+  { value: 4, emoji: '🍈', label: 'Massive, melon-sized', shortLabel: 'Melon' },
+];
 
 export type FeedComment = {
   id: UUID;

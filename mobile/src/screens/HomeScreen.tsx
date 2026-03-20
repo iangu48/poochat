@@ -31,7 +31,7 @@ import { HomeMapSection } from './home/components/HomeMapSection';
 import { EntryComposerModal } from './home/components/EntryComposerModal';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { BristolTypeChip } from './home/components/EntryVisuals';
-import { formatDateInput, formatEntryTimestamp, formatTimeInput, getRatingEmoji, getRatingEmotion } from './home/utils';
+import { formatDateInput, formatEntryTimestamp, formatTimeInput, getRatingEmoji, getRatingEmotion, getVolumeEmoji, getVolumeLabel } from './home/utils';
 
 type Props = {
   themeMode: ThemeMode;
@@ -54,6 +54,7 @@ type Props = {
   showEntryComposer: boolean;
   bristolType: string;
   rating: string;
+  volume: string;
   note: string;
   entryDate: string;
   entryTime: string;
@@ -68,6 +69,7 @@ type Props = {
   onToggleComposer: () => void;
   onBristolTypeChange: (value: string) => void;
   onRatingChange: (value: string) => void;
+  onVolumeChange: (value: string) => void;
   onNoteChange: (value: string) => void;
   onEntryDateChange: (value: string) => void;
   onEntryTimeChange: (value: string) => void;
@@ -106,6 +108,7 @@ export function HomeScreen(props: Props) {
     showEntryComposer,
     bristolType,
     rating,
+    volume,
     note,
     entryDate,
     entryTime,
@@ -120,6 +123,7 @@ export function HomeScreen(props: Props) {
     onToggleComposer,
     onBristolTypeChange,
     onRatingChange,
+    onVolumeChange,
     onNoteChange,
     onEntryDateChange,
     onEntryTimeChange,
@@ -161,6 +165,7 @@ export function HomeScreen(props: Props) {
       occurredAt: item.occurredAt,
       bristolType: item.bristolType,
       rating: item.rating,
+      volume: item.volume,
       note: null,
       latitude: item.latitude,
       longitude: item.longitude,
@@ -447,6 +452,9 @@ export function HomeScreen(props: Props) {
                         <Text style={styles.feedMetaInline}>
                           {getRatingEmoji(selectedFeedItem.rating)} {getRatingEmotion(selectedFeedItem.rating)}
                         </Text>
+                        <Text style={[styles.feedMetaInline, { color: colors.text }]}>
+                          {getVolumeEmoji(selectedFeedItem.volume)} {getVolumeLabel(selectedFeedItem.volume)}
+                        </Text>
                         <BristolTypeChip typeValue={selectedFeedItem.bristolType} themeMode={themeMode} />
                       </View>
                     </View>
@@ -605,6 +613,7 @@ export function HomeScreen(props: Props) {
         isEditingEntry={isEditingEntry}
         bristolType={bristolType}
         rating={rating}
+        volume={volume}
         note={note}
         showDateEditor={showDateEditor}
         pickerStep={pickerStep}
@@ -631,6 +640,7 @@ export function HomeScreen(props: Props) {
         onSaveDateTime={onSaveDateTime}
         onBristolTypeChange={onBristolTypeChange}
         onRatingChange={onRatingChange}
+        onVolumeChange={onVolumeChange}
         onNoteChange={onNoteChange}
         onNoteFocus={() => {}}
         onDateStepActionsLayout={() => {}}

@@ -1257,6 +1257,11 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 2,
   },
+  selectedDayEntryMeta: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
   selectedDayEntryNote: {
     color: '#c9d1d9',
     fontSize: 10,
@@ -1579,10 +1584,59 @@ export const styles = StyleSheet.create({
     marginBottom: 2,
     textAlign: 'center',
   },
+  entrySquareMeta: {
+    fontWeight: '700',
+    fontSize: 10,
+    marginBottom: 2,
+    textAlign: 'center',
+  },
   entrySquareTime: {
     color: '#8b949e',
     fontSize: 10,
     marginBottom: 3,
+    textAlign: 'center',
+  },
+  volumeVisualCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    gap: 6,
+  },
+  volumeVisualEmoji: {
+    fontSize: 28,
+  },
+  volumeVisualLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  volumeOptionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  volumeOptionButton: {
+    width: '18%',
+    minWidth: 62,
+    flexGrow: 1,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  volumeOptionEmoji: {
+    fontSize: 18,
+  },
+  volumeOptionText: {
+    fontSize: 11,
+    fontWeight: '700',
     textAlign: 'center',
   },
   entrySquareNote: {

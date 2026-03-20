@@ -1,4 +1,4 @@
-import type { PoopEntry } from '../../types/domain';
+import { POOP_VOLUME_OPTIONS, type PoopEntry } from '../../types/domain';
 import type { ThemeMode } from '../../theme';
 
 export type CalendarCell = {
@@ -160,6 +160,18 @@ export function getRatingEmoji(value: number): string {
     default:
       return '❔';
   }
+}
+
+export function getVolumeLabel(value: number): string {
+  return POOP_VOLUME_OPTIONS.find((option) => option.value === Math.max(0, Math.min(4, Math.round(value))))?.label ?? 'Medium';
+}
+
+export function getVolumeShortLabel(value: number): string {
+  return POOP_VOLUME_OPTIONS.find((option) => option.value === Math.max(0, Math.min(4, Math.round(value))))?.shortLabel ?? 'Medium';
+}
+
+export function getVolumeEmoji(value: number): string {
+  return POOP_VOLUME_OPTIONS.find((option) => option.value === Math.max(0, Math.min(4, Math.round(value))))?.emoji ?? '◻️';
 }
 
 export function formatDateInput(value: Date): string {

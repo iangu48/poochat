@@ -29,6 +29,7 @@ type Props = {
   showEntryComposer: boolean;
   bristolType: string;
   rating: string;
+  volume: string;
   note: string;
   entryDate: string;
   entryTime: string;
@@ -36,6 +37,7 @@ type Props = {
   onEditEntry: (entry: PoopEntry) => void;
   onBristolTypeChange: (value: string) => void;
   onRatingChange: (value: string) => void;
+  onVolumeChange: (value: string) => void;
   onNoteChange: (value: string) => void;
   onEntryDateChange: (value: string) => void;
   onEntryTimeChange: (value: string) => void;
@@ -55,6 +57,7 @@ export function OverviewScreen(props: Props) {
     showEntryComposer,
     bristolType,
     rating,
+    volume,
     note,
     entryDate,
     entryTime,
@@ -62,6 +65,7 @@ export function OverviewScreen(props: Props) {
     onEditEntry,
     onBristolTypeChange,
     onRatingChange,
+    onVolumeChange,
     onNoteChange,
     onEntryDateChange,
     onEntryTimeChange,
@@ -230,6 +234,7 @@ export function OverviewScreen(props: Props) {
         isEditingEntry={isEditingEntry}
         bristolType={bristolType}
         rating={rating}
+        volume={volume}
         note={note}
         showDateEditor={showDateEditor}
         pickerStep={pickerStep}
@@ -256,6 +261,7 @@ export function OverviewScreen(props: Props) {
         onSaveDateTime={onSaveDateTime}
         onBristolTypeChange={onBristolTypeChange}
         onRatingChange={onRatingChange}
+        onVolumeChange={onVolumeChange}
         onNoteChange={onNoteChange}
         onNoteFocus={() => {}}
         onDateStepActionsLayout={() => {}}

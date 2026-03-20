@@ -39,6 +39,7 @@ create table if not exists public.poop_entries (
   occurred_at timestamptz not null,
   bristol_type smallint not null check (bristol_type between 1 and 7),
   rating smallint not null check (rating between 1 and 5),
+  volume smallint not null default 2 check (volume between 0 and 4),
   note text,
   latitude double precision,
   longitude double precision,
@@ -161,6 +162,7 @@ where avatar_tint is null;
 
 alter table public.poop_entries
   add column if not exists visibility public.poop_entry_visibility not null default 'friends_default',
+  add column if not exists volume smallint not null default 2 check (volume between 0 and 4),
   add column if not exists latitude double precision,
   add column if not exists longitude double precision,
   add column if not exists location_source text check (location_source in ('gps', 'manual'));
@@ -291,7 +293,9 @@ select
   p.display_name,
   e.occurred_at,
   e.rating,
-  e.created_at
+  e.created_at,
+  e.bristol_type,
+  e.volume
 from public.poop_entries e
 join public.profiles p on p.id = e.user_id
 where (

@@ -40,6 +40,7 @@ type PoopRow = {
   occurred_at: string;
   bristol_type: number;
   rating: number;
+  volume: number;
   note: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -90,6 +91,7 @@ type FeedRow = {
   occurred_at: string;
   bristol_type: number;
   rating: number;
+  volume: number;
   latitude: number | null;
   longitude: number | null;
   created_at: string;
@@ -165,6 +167,7 @@ function asPoopEntry(row: PoopRow): PoopEntry {
     occurredAt: row.occurred_at,
     bristolType: row.bristol_type as PoopEntry['bristolType'],
     rating: row.rating as PoopEntry['rating'],
+    volume: row.volume as PoopEntry['volume'],
     note: row.note,
     latitude: row.latitude == null ? null : Number(row.latitude),
     longitude: row.longitude == null ? null : Number(row.longitude),
@@ -204,6 +207,7 @@ function asFeedItem(row: FeedRow): FeedItem {
     occurredAt: row.occurred_at,
     bristolType: row.bristol_type as FeedItem['bristolType'],
     rating: row.rating as FeedItem['rating'],
+    volume: row.volume as FeedItem['volume'],
     latitude: row.latitude == null ? null : Number(row.latitude),
     longitude: row.longitude == null ? null : Number(row.longitude),
     createdAt: row.created_at,
@@ -493,7 +497,7 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
       const userId = await requireUserId(client);
       const { data, error } = await client
         .from('poop_entries')
-        .select('id,user_id,occurred_at,bristol_type,rating,note,latitude,longitude,location_source')
+        .select('id,user_id,occurred_at,bristol_type,rating,volume,note,latitude,longitude,location_source')
         .eq('user_id', userId)
         .order('occurred_at', { ascending: false })
         .limit(limit);
@@ -510,12 +514,13 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
           occurred_at: input.occurredAt,
           bristol_type: input.bristolType,
           rating: input.rating,
+          volume: input.volume,
           note: input.note ?? null,
           latitude: Number.isFinite(input.latitude) ? input.latitude : null,
           longitude: Number.isFinite(input.longitude) ? input.longitude : null,
           location_source: input.locationSource ?? null,
         })
-        .select('id,user_id,occurred_at,bristol_type,rating,note,latitude,longitude,location_source')
+        .select('id,user_id,occurred_at,bristol_type,rating,volume,note,latitude,longitude,location_source')
         .single();
       if (error) throw error;
       return asPoopEntry(data as PoopRow);
@@ -523,7 +528,7 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
 
     async updateMine(
       entryId: UUID,
-      input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'note' | 'latitude' | 'longitude' | 'locationSource'>>
+      input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'volume' | 'note' | 'latitude' | 'longitude' | 'locationSource'>>
     ): Promise<PoopEntry> {
       const userId = await requireUserId(client);
       const updatePayload: Record<string, unknown> = {};
@@ -532,6 +537,7 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
       }
       if (typeof input.bristolType === 'number') updatePayload.bristol_type = input.bristolType;
       if (typeof input.rating === 'number') updatePayload.rating = input.rating;
+      if (typeof input.volume === 'number') updatePayload.volume = input.volume;
       if (Object.prototype.hasOwnProperty.call(input, 'note')) {
         updatePayload.note = input.note?.trim() ? input.note.trim() : null;
       }
@@ -550,7 +556,7 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
         .update(updatePayload)
         .eq('id', entryId)
         .eq('user_id', userId)
-        .select('id,user_id,occurred_at,bristol_type,rating,note,latitude,longitude,location_source')
+        .select('id,user_id,occurred_at,bristol_type,rating,volume,note,latitude,longitude,location_source')
         .single();
       if (error) throw error;
       return asPoopEntry(data as PoopRow);
@@ -569,7 +575,7 @@ export function createSupabaseFeedService(client: SupabaseClient): FeedService {
     async listMineAndFriends(limit = 100): Promise<FeedItem[]> {
       const { data, error } = await client
         .from('poop_entries')
-        .select('id,user_id,occurred_at,bristol_type,rating,latitude,longitude,created_at,profiles:user_id(username,display_name)')
+        .select('id,user_id,occurred_at,bristol_type,rating,volume,latitude,longitude,created_at,profiles:user_id(username,display_name)')
         .order('occurred_at', { ascending: false })
         .limit(limit);
       if (error) throw error;
