@@ -17,10 +17,14 @@ import { Ionicons } from '@expo/vector-icons';
 import type {
   FeedComment,
   FeedItem,
+  FeedReactionKind,
+  FeedReactionSummary,
+  FeedReactionOption,
   IncomingFriendRequest,
   PoopEntry,
   Profile,
 } from '../types/domain';
+import { FEED_REACTION_OPTIONS } from '../types/domain';
 import { styles } from './styles';
 import { getThemePalette, type ThemeMode } from '../theme';
 import { HomeMapSection } from './home/components/HomeMapSection';
@@ -37,8 +41,10 @@ type Props = {
   feedItems: FeedItem[];
   profilesById: Record<string, Profile>;
   feedCommentsByEntry: Record<string, FeedComment[]>;
+  feedReactionsByEntry: Record<string, FeedReactionSummary>;
   feedCommentDraftByEntry: Record<string, string>;
   feedCommentSubmittingEntryId: string;
+  feedReactionSubmittingEntryId: string;
   feedLoading: boolean;
   feedError: string;
   addEntryLoading: boolean;
@@ -72,6 +78,7 @@ type Props = {
   onDeleteEntry: (entryId: string) => Promise<void>;
   onFeedCommentDraftChange: (entryId: string, value: string) => void;
   onAddFeedComment: (entryId: string) => Promise<void>;
+  onToggleFeedReaction: (entryId: string, reaction: FeedReactionKind) => Promise<void>;
   onFriendUsernameChange: (value: string) => void;
   onSendFriendRequest: () => Promise<void>;
   onAcceptRequest: (friendshipId: string) => void;
@@ -86,8 +93,10 @@ export function HomeScreen(props: Props) {
     feedItems,
     profilesById,
     feedCommentsByEntry,
+    feedReactionsByEntry,
     feedCommentDraftByEntry,
     feedCommentSubmittingEntryId,
+    feedReactionSubmittingEntryId,
     feedLoading,
     feedError,
     addEntryLoading,
@@ -121,6 +130,7 @@ export function HomeScreen(props: Props) {
     onDeleteEntry,
     onFeedCommentDraftChange,
     onAddFeedComment,
+    onToggleFeedReaction,
     onFriendUsernameChange,
     onSendFriendRequest,
     onAcceptRequest,
@@ -164,6 +174,7 @@ export function HomeScreen(props: Props) {
     [selectedFeedEntryId, todayFeedItems],
   );
   const selectedComments = selectedFeedEntryId ? (feedCommentsByEntry[selectedFeedEntryId] ?? []) : [];
+  const selectedReactionSummary = selectedFeedEntryId ? feedReactionsByEntry[selectedFeedEntryId] : undefined;
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow';
@@ -257,6 +268,18 @@ export function HomeScreen(props: Props) {
 
   const selectedIsMine = Boolean(selectedFeedItem && selectedFeedItem.subjectId === currentUserId);
   const selectedEntryDeleting = Boolean(selectedFeedItem && deletingEntryIds.includes(selectedFeedItem.entryId));
+  const reactionBusy = Boolean(selectedFeedItem && feedReactionSubmittingEntryId === selectedFeedItem.entryId);
+  const reactionOptions = useMemo<FeedReactionOption[]>(() => {
+    const base = [...FEED_REACTION_OPTIONS];
+    const seen = new Set(base.map((item) => item.key));
+    const dynamicKeys = Object.keys(selectedReactionSummary?.counts ?? {});
+    for (const key of dynamicKeys) {
+      if (seen.has(key)) continue;
+      base.push({ key, emoji: '✨', label: key });
+      seen.add(key);
+    }
+    return base;
+  }, [selectedReactionSummary]);
 
   return (
     <>
@@ -430,6 +453,38 @@ export function HomeScreen(props: Props) {
                     <Text style={[styles.muted, { color: colors.mutedText }]}>
                       {selectedComments.length} comment{selectedComments.length === 1 ? '' : 's'}
                     </Text>
+                    <View style={styles.feedReactionsRow}>
+                      {reactionOptions.map((option) => {
+                        const kind = option.key;
+                        const count = selectedReactionSummary?.counts[kind] ?? 0;
+                        const isSelected = selectedReactionSummary?.myReaction === kind;
+                        return (
+                          <TouchableOpacity
+                            key={`reaction-${kind}`}
+                            style={[
+                              styles.feedReactionChip,
+                              {
+                                backgroundColor: isSelected ? colors.primary : colors.surface,
+                                borderColor: isSelected ? colors.primaryBorder : colors.border,
+                              },
+                              reactionBusy ? styles.buttonDisabled : null,
+                            ]}
+                            onPress={() => {
+                              if (!selectedFeedItem || reactionBusy) return;
+                              void onToggleFeedReaction(selectedFeedItem.entryId, kind);
+                            }}
+                            disabled={reactionBusy}
+                          >
+                            <Text style={styles.feedReactionEmoji}>{option.emoji}</Text>
+                            {count > 0 ? (
+                              <Text style={[styles.feedReactionCount, { color: isSelected ? '#fff' : colors.mutedText }]}>
+                                {count}
+                              </Text>
+                            ) : null}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                     {selectedIsMine ? (
                       <View style={styles.feedActionsRow}>
                         <TouchableOpacity

@@ -3,6 +3,7 @@ import type { TextInput as TextInputHandle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { RealtimePostgresInsertPayload, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { FEED_REACTION_OPTIONS } from '../types/domain';
 import {
   createSupabaseChatService,
   createSupabaseFeedService,
@@ -17,6 +18,8 @@ import type {
   ChatRoomInvite,
   FeedItem,
   FeedComment,
+  FeedReactionKind,
+  FeedReactionSummary,
   IncomingFriendRequest,
   LeaderboardRow,
   PoopEntry,
@@ -85,8 +88,10 @@ export function useAppController() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedCommentsByEntry, setFeedCommentsByEntry] = useState<Record<string, FeedComment[]>>({});
+  const [feedReactionsByEntry, setFeedReactionsByEntry] = useState<Record<string, FeedReactionSummary>>({});
   const [feedCommentDraftByEntry, setFeedCommentDraftByEntry] = useState<Record<string, string>>({});
   const [feedCommentSubmittingEntryId, setFeedCommentSubmittingEntryId] = useState('');
+  const [feedReactionSubmittingEntryId, setFeedReactionSubmittingEntryId] = useState('');
   const [feedError, setFeedError] = useState('');
 
   const [friendUsername, setFriendUsername] = useState('');
@@ -197,8 +202,10 @@ export function useAppController() {
       setEntries([]);
       setFeedItems([]);
       setFeedCommentsByEntry({});
+      setFeedReactionsByEntry({});
       setFeedCommentDraftByEntry({});
       setFeedCommentSubmittingEntryId('');
+      setFeedReactionSubmittingEntryId('');
       setFriends([]);
       setIncomingRequests([]);
       setActiveRoomId('');
@@ -321,8 +328,12 @@ export function useAppController() {
     try {
       const items = await feedService.listMineAndFriends(60);
       setFeedItems(items);
-      const comments = await feedService.listCommentsByEntryIds(items.map((item) => item.entryId), 20);
+      const [comments, reactions] = await Promise.all([
+        feedService.listCommentsByEntryIds(items.map((item) => item.entryId), 20),
+        feedService.listReactionsByEntryIds(items.map((item) => item.entryId)),
+      ]);
       setFeedCommentsByEntry(comments);
+      setFeedReactionsByEntry(reactions);
       void hydrateProfilesByIds(items.map((item) => item.subjectId));
     } catch (error) {
       setFeedError(error instanceof Error ? error.message : 'Failed to load feed.');
@@ -353,6 +364,59 @@ export function useAppController() {
       setFeedError(error instanceof Error ? error.message : 'Failed to add comment.');
     } finally {
       setFeedCommentSubmittingEntryId('');
+    }
+  }
+
+  async function handleToggleFeedReaction(entryId: string, reaction: FeedReactionKind): Promise<void> {
+    if (!entryId || feedReactionSubmittingEntryId === entryId) return;
+    setFeedReactionSubmittingEntryId(entryId);
+    setFeedError('');
+    const previousSummary = feedReactionsByEntry[entryId] ?? {
+      entryId,
+      myReaction: null,
+      counts: FEED_REACTION_OPTIONS.reduce<Record<string, number>>((acc, item) => {
+        acc[item.key] = 0;
+        return acc;
+      }, {}),
+      total: 0,
+    };
+    const optimisticReaction = previousSummary.myReaction === reaction ? null : reaction;
+
+    setFeedReactionsByEntry((prev) => {
+      const nextCounts: Record<string, number> = { ...previousSummary.counts };
+      let nextTotal = previousSummary.total;
+
+      if (previousSummary.myReaction) {
+        nextCounts[previousSummary.myReaction] = Math.max(0, (nextCounts[previousSummary.myReaction] ?? 0) - 1);
+        nextTotal = Math.max(0, nextTotal - 1);
+      }
+
+      if (optimisticReaction) {
+        nextCounts[optimisticReaction] = (nextCounts[optimisticReaction] ?? 0) + 1;
+        nextTotal += 1;
+      }
+
+      return {
+        ...prev,
+        [entryId]: {
+          entryId,
+          myReaction: optimisticReaction,
+          counts: nextCounts,
+          total: nextTotal,
+        },
+      };
+    });
+
+    try {
+      await feedService.toggleReaction(entryId, reaction);
+    } catch (error) {
+      setFeedReactionsByEntry((prev) => ({
+        ...prev,
+        [entryId]: previousSummary,
+      }));
+      setFeedError(error instanceof Error ? error.message : 'Failed to set reaction.');
+    } finally {
+      setFeedReactionSubmittingEntryId('');
     }
   }
 
@@ -1270,13 +1334,16 @@ export function useAppController() {
     editingEntryId,
     feedItems,
     feedCommentsByEntry,
+    feedReactionsByEntry,
     feedCommentDraftByEntry,
     feedCommentSubmittingEntryId,
+    feedReactionSubmittingEntryId,
     feedError,
     refreshEntries,
     refreshFeed,
     setFeedCommentDraft,
     handleAddFeedComment,
+    handleToggleFeedReaction,
     handleDeleteEntry,
     handleUpdateEntryLocation,
     handleAddEntry,

@@ -12,6 +12,7 @@ import { OverviewScreen } from './src/screens/OverviewScreen';
 import { styles } from './src/screens/styles';
 import { TabBar } from './src/screens/TabBar';
 import { useAppController } from './src/hooks/useAppController';
+import type { FeedReactionKind } from './src/types/domain';
 
 export default function App() {
   const app = useAppController();
@@ -94,8 +95,10 @@ export default function App() {
     feedItems: app.feedItems,
     profilesById: app.profilesById,
     feedCommentsByEntry: app.feedCommentsByEntry,
+    feedReactionsByEntry: app.feedReactionsByEntry,
     feedCommentDraftByEntry: app.feedCommentDraftByEntry,
     feedCommentSubmittingEntryId: app.feedCommentSubmittingEntryId,
+    feedReactionSubmittingEntryId: app.feedReactionSubmittingEntryId,
     feedLoading: app.feedLoading,
     feedError: app.feedError,
     loadingEntries: app.loadingEntries,
@@ -125,6 +128,7 @@ export default function App() {
     onDeleteEntry: (entryId: string) => app.handleDeleteEntry(entryId),
     onFeedCommentDraftChange: app.setFeedCommentDraft,
     onAddFeedComment: (entryId: string) => app.handleAddFeedComment(entryId),
+    onToggleFeedReaction: (entryId: string, reaction: FeedReactionKind) => app.handleToggleFeedReaction(entryId, reaction),
     friendUsername: app.friendUsername,
     friends: app.friends,
     incomingRequests: app.incomingRequests,

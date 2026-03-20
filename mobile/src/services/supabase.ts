@@ -1,10 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { FEED_REACTION_OPTIONS } from '../types/domain';
 import type {
   ChatMessage,
   ChatRoom,
   ChatRoomInvite,
   FeedItem,
   FeedComment,
+  FeedReactionKind,
+  FeedReactionSummary,
   IncomingFriendRequest,
   LeaderboardRow,
   PoopEntry,
@@ -114,6 +117,14 @@ type FeedCommentRow = {
         avatar_tint: string | null;
       }>
     | null;
+};
+
+type FeedReactionRow = {
+  id: string;
+  entry_id: string;
+  user_id: string;
+  reaction: FeedReactionKind;
+  created_at: string;
 };
 
 type ChatRoomRow = {
@@ -588,6 +599,48 @@ export function createSupabaseFeedService(client: SupabaseClient): FeedService {
       return grouped;
     },
 
+    async listReactionsByEntryIds(entryIds: UUID[]): Promise<Record<UUID, FeedReactionSummary>> {
+      const me = await requireUserId(client);
+      const uniqueIds = Array.from(new Set(entryIds.filter((id) => Boolean(id?.trim?.()))));
+      if (uniqueIds.length === 0) return {};
+
+      const { data, error } = await client
+        .from('friend_feed_reactions')
+        .select('id,entry_id,user_id,reaction,created_at')
+        .in('entry_id', uniqueIds);
+      if (error) throw error;
+
+      const grouped: Record<UUID, FeedReactionSummary> = {};
+      for (const entryId of uniqueIds) {
+        const seedCounts: Record<string, number> = {};
+        for (const option of FEED_REACTION_OPTIONS) {
+          seedCounts[option.key] = 0;
+        }
+        grouped[entryId] = {
+          entryId,
+          myReaction: null,
+          counts: seedCounts,
+          total: 0,
+        };
+      }
+
+      for (const row of (data ?? []) as FeedReactionRow[]) {
+        const summary = grouped[row.entry_id];
+        if (!summary) continue;
+        if (typeof row.reaction !== 'string' || row.reaction.trim().length === 0) continue;
+        if (summary.counts[row.reaction] == null) {
+          summary.counts[row.reaction] = 0;
+        }
+        summary.counts[row.reaction] += 1;
+        summary.total += 1;
+        if (row.user_id === me) {
+          summary.myReaction = row.reaction;
+        }
+      }
+
+      return grouped;
+    },
+
     async addComment(entryId: UUID, body: string): Promise<FeedComment> {
       const userId = await requireUserId(client);
       const trimmed = body.trim();
@@ -603,6 +656,47 @@ export function createSupabaseFeedService(client: SupabaseClient): FeedService {
         .single();
       if (error) throw error;
       return asFeedComment(data as FeedCommentRow);
+    },
+
+    async toggleReaction(entryId: UUID, reaction: FeedReactionKind): Promise<{ entryId: UUID; myReaction: FeedReactionKind | null }> {
+      const me = await requireUserId(client);
+      const reactionKey = reaction.trim().toLowerCase();
+      if (!reactionKey || reactionKey.length > 32) throw new Error('Invalid reaction.');
+
+      const { data: existing, error: existingError } = await client
+        .from('friend_feed_reactions')
+        .select('id,reaction')
+        .eq('entry_id', entryId)
+        .eq('user_id', me)
+        .maybeSingle();
+      if (existingError) throw existingError;
+
+      const existingReaction = existing?.reaction as FeedReactionKind | undefined;
+      if (existing && existingReaction === reactionKey) {
+        const { error: deleteError } = await client
+          .from('friend_feed_reactions')
+          .delete()
+          .eq('id', existing.id)
+          .eq('user_id', me);
+        if (deleteError) throw deleteError;
+        return { entryId, myReaction: null };
+      }
+
+      const { data, error } = await client
+        .from('friend_feed_reactions')
+        .upsert(
+          {
+            entry_id: entryId,
+            user_id: me,
+            reaction: reactionKey,
+          },
+          { onConflict: 'entry_id,user_id' },
+        )
+        .select('reaction')
+        .single();
+      if (error) throw error;
+
+      return { entryId, myReaction: (data?.reaction as FeedReactionKind) ?? reactionKey };
     },
   };
 }

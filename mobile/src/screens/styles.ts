@@ -417,6 +417,30 @@ export const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 4,
   },
+  feedReactionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  feedReactionChip: {
+    minHeight: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  feedReactionEmoji: {
+    fontSize: 14,
+  },
+  feedReactionCount: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   feedActionButton: {
     minHeight: 30,
     borderRadius: 15,

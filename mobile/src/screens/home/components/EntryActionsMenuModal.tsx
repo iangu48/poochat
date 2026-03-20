@@ -50,8 +50,7 @@ export function EntryActionsMenuModal(props: Props) {
           <TouchableOpacity
             style={[
               styles.entryActionDrawerButton,
-              { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
-              styles.entryActionDrawerButtonDanger,
+              { backgroundColor: colors.danger, borderColor: colors.dangerBorder },
               entryMenuId && deletingEntryIds.includes(entryMenuId) && styles.buttonDisabled,
             ]}
             disabled={!entryMenuId || deletingEntryIds.includes(entryMenuId)}
@@ -63,11 +62,17 @@ export function EntryActionsMenuModal(props: Props) {
             accessibilityLabel="Delete entry"
           >
             {entryMenuId && deletingEntryIds.includes(entryMenuId) ? (
-              <ActivityIndicator size="small" color="#ff7b72" />
+              <ActivityIndicator size="small" color={themeMode === 'light' ? '#b44b56' : '#ff7b72'} />
             ) : (
-              <Ionicons name="trash-outline" size={20} color="#ffb3ad" />
+              <Ionicons name="trash-outline" size={20} color={themeMode === 'light' ? '#b44b56' : '#ffb3ad'} />
             )}
-            <Text style={[styles.entryActionDrawerButtonText, styles.entryActionDrawerButtonTextDanger]}>
+            <Text
+              style={[
+                styles.entryActionDrawerButtonText,
+                styles.entryActionDrawerButtonTextDanger,
+                { color: themeMode === 'light' ? '#b44b56' : '#ff7b72' },
+              ]}
+            >
               {entryMenuId && deletingEntryIds.includes(entryMenuId) ? 'Deleting…' : 'Delete'}
             </Text>
           </TouchableOpacity>

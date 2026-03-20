@@ -64,6 +64,29 @@ export type FeedComment = {
   createdAt: string;
 };
 
+export type FeedReactionKind = string;
+
+export type FeedReactionOption = {
+  key: FeedReactionKind;
+  emoji: string;
+  label: string;
+};
+
+export const FEED_REACTION_OPTIONS: FeedReactionOption[] = [
+  { key: 'like', emoji: '👍', label: 'Like' },
+  { key: 'love', emoji: '❤️', label: 'Love' },
+  { key: 'laugh', emoji: '😂', label: 'Laugh' },
+  { key: 'wow', emoji: '😮', label: 'Wow' },
+  { key: 'poop', emoji: '💩', label: 'Poop' },
+];
+
+export type FeedReactionSummary = {
+  entryId: UUID;
+  myReaction: FeedReactionKind | null;
+  counts: Record<string, number>;
+  total: number;
+};
+
 export type ChatRoom = {
   id: UUID;
   type: 'dm' | 'group_private';

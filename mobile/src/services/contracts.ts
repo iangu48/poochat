@@ -4,6 +4,8 @@ import type {
   ChatRoomInvite,
   FeedItem,
   FeedComment,
+  FeedReactionKind,
+  FeedReactionSummary,
   IncomingFriendRequest,
   LeaderboardRow,
   PoopEntry,
@@ -58,7 +60,9 @@ export interface LeaderboardService {
 export interface FeedService {
   listMineAndFriends(limit?: number): Promise<FeedItem[]>;
   listCommentsByEntryIds(entryIds: UUID[], limitPerEntry?: number): Promise<Record<UUID, FeedComment[]>>;
+  listReactionsByEntryIds(entryIds: UUID[]): Promise<Record<UUID, FeedReactionSummary>>;
   addComment(entryId: UUID, body: string): Promise<FeedComment>;
+  toggleReaction(entryId: UUID, reaction: FeedReactionKind): Promise<{ entryId: UUID; myReaction: FeedReactionKind | null }>;
 }
 
 export interface ChatService {
