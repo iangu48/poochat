@@ -82,10 +82,14 @@ type FeedRow = {
     | {
         username: string;
         display_name: string;
+        avatar_url: string | null;
+        avatar_tint: string | null;
       }
     | Array<{
         username: string;
         display_name: string;
+        avatar_url: string | null;
+        avatar_tint: string | null;
       }>
     | null;
   occurred_at: string;
@@ -204,6 +208,8 @@ function asFeedItem(row: FeedRow): FeedItem {
     subjectId: row.user_id,
     username: profile?.username ?? 'unknown',
     displayName: profile?.display_name ?? 'Unknown user',
+    avatarUrl: profile?.avatar_url ?? null,
+    avatarTint: profile?.avatar_tint ?? '#5b6c8a',
     occurredAt: row.occurred_at,
     bristolType: row.bristol_type as FeedItem['bristolType'],
     rating: row.rating as FeedItem['rating'],
@@ -258,6 +264,11 @@ async function requireUserId(client: SupabaseClient): Promise<UUID> {
   if (error) throw error;
   if (!data.user) throw new Error('No authenticated user.');
   return data.user.id;
+}
+
+async function resolveUserId(client: SupabaseClient, userId?: UUID): Promise<UUID> {
+  if (userId) return userId;
+  return requireUserId(client);
 }
 
 async function loadProfilesByIds(client: SupabaseClient, ids: UUID[]): Promise<Map<UUID, Profile>> {
@@ -364,8 +375,8 @@ function extractAvatarObjectPath(avatarUrl: string): string | null {
 
 export function createSupabaseProfileService(client: SupabaseClient): ProfileService {
   return {
-    async getMine(): Promise<Profile | null> {
-      const me = await requireUserId(client);
+    async getMine(userId?: UUID): Promise<Profile | null> {
+      const me = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('profiles')
         .select('id,username,display_name,share_feed,avatar_url,avatar_tint')
@@ -376,8 +387,8 @@ export function createSupabaseProfileService(client: SupabaseClient): ProfileSer
       return asProfile(data as ProfileRow);
     },
 
-    async upsertMine(input: UpsertProfileInput): Promise<Profile> {
-      const me = await requireUserId(client);
+    async upsertMine(input: UpsertProfileInput, userId?: UUID): Promise<Profile> {
+      const me = await resolveUserId(client, userId);
       const username = input.username.trim().toLowerCase();
       const displayName = input.displayName.trim();
       const { data, error } = await client
@@ -396,8 +407,8 @@ export function createSupabaseProfileService(client: SupabaseClient): ProfileSer
       return asProfile(data as ProfileRow);
     },
 
-    async setShareFeed(enabled: boolean): Promise<Profile> {
-      const me = await requireUserId(client);
+    async setShareFeed(enabled: boolean, userId?: UUID): Promise<Profile> {
+      const me = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('profiles')
         .update({ share_feed: enabled })
@@ -408,8 +419,8 @@ export function createSupabaseProfileService(client: SupabaseClient): ProfileSer
       return asProfile(data as ProfileRow);
     },
 
-    async uploadAvatar(imageUri: string, mimeType = 'image/jpeg', base64Data?: string): Promise<Profile> {
-      const me = await requireUserId(client);
+    async uploadAvatar(imageUri: string, mimeType = 'image/jpeg', base64Data?: string, userId?: UUID): Promise<Profile> {
+      const me = await resolveUserId(client, userId);
       if (!imageUri.trim()) throw new Error('Image URI is required.');
       const extension = normalizeImageExtension(mimeType);
       const filePath = `${me}/avatar-${Date.now()}.${extension}`;
@@ -493,24 +504,24 @@ export function createSupabaseProfileService(client: SupabaseClient): ProfileSer
 
 export function createSupabasePoopService(client: SupabaseClient): PoopService {
   return {
-    async listMine(limit = 50): Promise<PoopEntry[]> {
-      const userId = await requireUserId(client);
+    async listMine(limit = 50, userId?: UUID): Promise<PoopEntry[]> {
+      const me = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('poop_entries')
         .select('id,user_id,occurred_at,bristol_type,rating,volume,note,latitude,longitude,location_source')
-        .eq('user_id', userId)
+        .eq('user_id', me)
         .order('occurred_at', { ascending: false })
         .limit(limit);
       if (error) throw error;
       return (data ?? []).map((row) => asPoopEntry(row as PoopRow));
     },
 
-    async createMine(input: NewPoopEntryInput): Promise<PoopEntry> {
-      const userId = await requireUserId(client);
+    async createMine(input: NewPoopEntryInput, userId?: UUID): Promise<PoopEntry> {
+      const me = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('poop_entries')
         .insert({
-          user_id: userId,
+          user_id: me,
           occurred_at: input.occurredAt,
           bristol_type: input.bristolType,
           rating: input.rating,
@@ -528,9 +539,10 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
 
     async updateMine(
       entryId: UUID,
-      input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'volume' | 'note' | 'latitude' | 'longitude' | 'locationSource'>>
+      input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'volume' | 'note' | 'latitude' | 'longitude' | 'locationSource'>>,
+      userId?: UUID
     ): Promise<PoopEntry> {
-      const userId = await requireUserId(client);
+      const me = await resolveUserId(client, userId);
       const updatePayload: Record<string, unknown> = {};
       if (typeof input.occurredAt === 'string' && input.occurredAt.trim()) {
         updatePayload.occurred_at = input.occurredAt.trim();
@@ -555,16 +567,16 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
         .from('poop_entries')
         .update(updatePayload)
         .eq('id', entryId)
-        .eq('user_id', userId)
+        .eq('user_id', me)
         .select('id,user_id,occurred_at,bristol_type,rating,volume,note,latitude,longitude,location_source')
         .single();
       if (error) throw error;
       return asPoopEntry(data as PoopRow);
     },
 
-    async deleteMine(entryId: UUID): Promise<void> {
-      const userId = await requireUserId(client);
-      const { error } = await client.from('poop_entries').delete().eq('id', entryId).eq('user_id', userId);
+    async deleteMine(entryId: UUID, userId?: UUID): Promise<void> {
+      const me = await resolveUserId(client, userId);
+      const { error } = await client.from('poop_entries').delete().eq('id', entryId).eq('user_id', me);
       if (error) throw error;
     },
   };
@@ -575,7 +587,7 @@ export function createSupabaseFeedService(client: SupabaseClient): FeedService {
     async listMineAndFriends(limit = 100): Promise<FeedItem[]> {
       const { data, error } = await client
         .from('poop_entries')
-        .select('id,user_id,occurred_at,bristol_type,rating,volume,latitude,longitude,created_at,profiles:user_id(username,display_name)')
+        .select('id,user_id,occurred_at,bristol_type,rating,volume,latitude,longitude,created_at,profiles:user_id(username,display_name,avatar_url,avatar_tint)')
         .order('occurred_at', { ascending: false })
         .limit(limit);
       if (error) throw error;
@@ -605,8 +617,8 @@ export function createSupabaseFeedService(client: SupabaseClient): FeedService {
       return grouped;
     },
 
-    async listReactionsByEntryIds(entryIds: UUID[]): Promise<Record<UUID, FeedReactionSummary>> {
-      const me = await requireUserId(client);
+    async listReactionsByEntryIds(entryIds: UUID[], userId?: UUID): Promise<Record<UUID, FeedReactionSummary>> {
+      const me = await resolveUserId(client, userId);
       const uniqueIds = Array.from(new Set(entryIds.filter((id) => Boolean(id?.trim?.()))));
       if (uniqueIds.length === 0) return {};
 
@@ -647,15 +659,15 @@ export function createSupabaseFeedService(client: SupabaseClient): FeedService {
       return grouped;
     },
 
-    async addComment(entryId: UUID, body: string): Promise<FeedComment> {
-      const userId = await requireUserId(client);
+    async addComment(entryId: UUID, body: string, userId?: UUID): Promise<FeedComment> {
+      const me = await resolveUserId(client, userId);
       const trimmed = body.trim();
       if (!trimmed) throw new Error('Comment cannot be empty.');
       const { data, error } = await client
         .from('friend_feed_comments')
         .insert({
           entry_id: entryId,
-          user_id: userId,
+          user_id: me,
           body: trimmed,
         })
         .select('id,entry_id,user_id,body,created_at,profiles:user_id(id,username,display_name,avatar_url,avatar_tint)')
@@ -664,8 +676,8 @@ export function createSupabaseFeedService(client: SupabaseClient): FeedService {
       return asFeedComment(data as FeedCommentRow);
     },
 
-    async toggleReaction(entryId: UUID, reaction: FeedReactionKind): Promise<{ entryId: UUID; myReaction: FeedReactionKind | null }> {
-      const me = await requireUserId(client);
+    async toggleReaction(entryId: UUID, reaction: FeedReactionKind, userId?: UUID): Promise<{ entryId: UUID; myReaction: FeedReactionKind | null }> {
+      const me = await resolveUserId(client, userId);
       const reactionKey = reaction.trim().toLowerCase();
       if (!reactionKey || reactionKey.length > 32) throw new Error('Invalid reaction.');
 
@@ -709,8 +721,8 @@ export function createSupabaseFeedService(client: SupabaseClient): FeedService {
 
 export function createSupabaseFriendsService(client: SupabaseClient): FriendsService {
   return {
-    async sendRequest(friendUserId: UUID): Promise<void> {
-      const me = await requireUserId(client);
+    async sendRequest(friendUserId: UUID, userId?: UUID): Promise<void> {
+      const me = await resolveUserId(client, userId);
       if (friendUserId === me) throw new Error('Cannot friend yourself.');
       const { error } = await client.from('friendships').insert({
         requester_id: me,
@@ -725,8 +737,8 @@ export function createSupabaseFriendsService(client: SupabaseClient): FriendsSer
       if (error) throw error;
     },
 
-    async listAccepted(): Promise<Profile[]> {
-      const me = await requireUserId(client);
+    async listAccepted(userId?: UUID): Promise<Profile[]> {
+      const me = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('friendships')
         .select('id,requester_id,addressee_id')
@@ -740,8 +752,8 @@ export function createSupabaseFriendsService(client: SupabaseClient): FriendsSer
       return friendIds.map((id) => profileMap.get(id)).filter((item): item is Profile => Boolean(item));
     },
 
-    async listIncomingPending(): Promise<IncomingFriendRequest[]> {
-      const me = await requireUserId(client);
+    async listIncomingPending(userId?: UUID): Promise<IncomingFriendRequest[]> {
+      const me = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('friendships')
         .select('id,requester_id,addressee_id')
@@ -764,8 +776,8 @@ export function createSupabaseFriendsService(client: SupabaseClient): FriendsSer
 
 export function createSupabaseLeaderboardService(client: SupabaseClient): LeaderboardService {
   return {
-    async listYear(year: number): Promise<LeaderboardRow[]> {
-      const viewerId = await requireUserId(client);
+    async listYear(year: number, userId?: UUID): Promise<LeaderboardRow[]> {
+      const viewerId = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('yearly_friend_leaderboard')
         .select('subject_id,username,display_name,year,score,avg_rating,rank')
@@ -780,8 +792,8 @@ export function createSupabaseLeaderboardService(client: SupabaseClient): Leader
 
 export function createSupabaseChatService(client: SupabaseClient): ChatService {
   return {
-    async createOrGetDirectRoom(friendUserId: UUID): Promise<UUID> {
-      const me = await requireUserId(client);
+    async createOrGetDirectRoom(friendUserId: UUID, userId?: UUID): Promise<UUID> {
+      const me = await resolveUserId(client, userId);
       if (friendUserId === me) throw new Error('Cannot open direct chat with yourself.');
 
       await requireAcceptedFriendship(client, me, friendUserId);
@@ -836,8 +848,8 @@ export function createSupabaseChatService(client: SupabaseClient): ChatService {
       return roomId;
     },
 
-    async createGroupRoom(name: string): Promise<ChatRoom> {
-      const me = await requireUserId(client);
+    async createGroupRoom(name: string, userId?: UUID): Promise<ChatRoom> {
+      const me = await resolveUserId(client, userId);
       const trimmed = name.trim();
       if (!trimmed) throw new Error('Group name is required.');
 
@@ -857,8 +869,8 @@ export function createSupabaseChatService(client: SupabaseClient): ChatService {
       return asChatRoom(room);
     },
 
-    async listRooms(): Promise<ChatRoom[]> {
-      const me = await requireUserId(client);
+    async listRooms(userId?: UUID): Promise<ChatRoom[]> {
+      const me = await resolveUserId(client, userId);
       const { data: membershipRows, error: membershipError } = await client
         .from('chat_room_members')
         .select('room_id')
@@ -877,8 +889,8 @@ export function createSupabaseChatService(client: SupabaseClient): ChatService {
       return (roomRows ?? []).map((row) => asChatRoom(row as ChatRoomRow));
     },
 
-    async getMyRoleInRoom(roomId: UUID): Promise<'owner' | 'admin' | 'member' | null> {
-      const me = await requireUserId(client);
+    async getMyRoleInRoom(roomId: UUID, userId?: UUID): Promise<'owner' | 'admin' | 'member' | null> {
+      const me = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('chat_room_members')
         .select('role')
@@ -890,8 +902,8 @@ export function createSupabaseChatService(client: SupabaseClient): ChatService {
       return data.role as 'owner' | 'admin' | 'member';
     },
 
-    async proposeInvite(roomId: UUID, inviteeId: UUID): Promise<ChatRoomInvite> {
-      const me = await requireUserId(client);
+    async proposeInvite(roomId: UUID, inviteeId: UUID, userId?: UUID): Promise<ChatRoomInvite> {
+      const me = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('chat_room_invites')
         .insert({
@@ -906,8 +918,8 @@ export function createSupabaseChatService(client: SupabaseClient): ChatService {
       return asChatRoomInvite(data as ChatRoomInviteRow);
     },
 
-    async listMyApprovedInvites(): Promise<ChatRoomInvite[]> {
-      const me = await requireUserId(client);
+    async listMyApprovedInvites(userId?: UUID): Promise<ChatRoomInvite[]> {
+      const me = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('chat_room_invites')
         .select('id,room_id,proposer_id,invitee_id,status,approved_by,created_at,updated_at,approved_at,resolved_at')
@@ -918,8 +930,8 @@ export function createSupabaseChatService(client: SupabaseClient): ChatService {
       return (data ?? []).map((row) => asChatRoomInvite(row as ChatRoomInviteRow));
     },
 
-    async joinApprovedInvite(inviteId: UUID): Promise<void> {
-      const me = await requireUserId(client);
+    async joinApprovedInvite(inviteId: UUID, userId?: UUID): Promise<void> {
+      const me = await resolveUserId(client, userId);
       const { data: inviteRow, error: inviteError } = await client
         .from('chat_room_invites')
         .select('id,room_id,proposer_id,invitee_id,status,approved_by,created_at,updated_at,approved_at,resolved_at')
@@ -946,8 +958,8 @@ export function createSupabaseChatService(client: SupabaseClient): ChatService {
       if (inviteUpdateError) throw inviteUpdateError;
     },
 
-    async approveInvite(inviteId: UUID): Promise<void> {
-      const me = await requireUserId(client);
+    async approveInvite(inviteId: UUID, userId?: UUID): Promise<void> {
+      const me = await resolveUserId(client, userId);
       const { data: inviteRow, error: inviteFetchError } = await client
         .from('chat_room_invites')
         .select('id,room_id,proposer_id,invitee_id,status,approved_by,created_at,updated_at,approved_at,resolved_at')
@@ -1001,8 +1013,8 @@ export function createSupabaseChatService(client: SupabaseClient): ChatService {
       return (data ?? []).map((row) => asChatMessage(row as MessageRow));
     },
 
-    async sendMessage(roomId: UUID, body: string): Promise<ChatMessage> {
-      const senderId = await requireUserId(client);
+    async sendMessage(roomId: UUID, body: string, userId?: UUID): Promise<ChatMessage> {
+      const senderId = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('chat_messages')
         .insert({

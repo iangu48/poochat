@@ -45,6 +45,8 @@ export type FeedItem = {
   subjectId: UUID;
   username: string;
   displayName: string;
+  avatarUrl: string | null;
+  avatarTint: string;
   occurredAt: string;
   bristolType: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   rating: 1 | 2 | 3 | 4 | 5;

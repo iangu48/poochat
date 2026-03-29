@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TextInput as TextInputHandle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { RealtimePostgresInsertPayload, Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { FEED_REACTION_OPTIONS } from '../types/domain';
 import {
-  createSupabaseChatService,
   createSupabaseFeedService,
   createSupabaseFriendsService,
   createSupabaseLeaderboardService,
@@ -13,9 +12,6 @@ import {
   createSupabaseProfileService,
 } from '../services/supabase';
 import type {
-  ChatMessage,
-  ChatRoom,
-  ChatRoomInvite,
   FeedItem,
   FeedComment,
   FeedReactionKind,
@@ -26,7 +22,6 @@ import type {
   Profile,
 } from '../types/domain';
 import type { Tab } from '../screens/TabBar';
-import type { ChatRoute } from '../screens/ChatScreen';
 
 type AuthMethod = 'phone' | 'email';
 export type SocialSection = 'feed' | 'friends';
@@ -35,6 +30,7 @@ const THEME_MODE_KEY = 'poochat.theme_mode';
 
 export function useAppController() {
   const [session, setSession] = useState<Session | null>(null);
+  const currentUserId = session?.user.id;
   const [authMethod, setAuthMethod] = useState<AuthMethod>('phone');
   const [authEmail, setAuthEmail] = useState('');
   const [authPhone, setAuthPhone] = useState('');
@@ -54,7 +50,7 @@ export function useAppController() {
   const feedService = useMemo(() => createSupabaseFeedService(supabase), []);
   const friendsService = useMemo(() => createSupabaseFriendsService(supabase), []);
   const leaderboardService = useMemo(() => createSupabaseLeaderboardService(supabase), []);
-  const chatService = useMemo(() => createSupabaseChatService(supabase), []);
+  // Chat is intentionally disabled indefinitely. Keep it out of controller setup and startup work.
 
   const [tab, setTab] = useState<Tab>('home');
   const [socialSection, setSocialSection] = useState<SocialSection>('friends');
@@ -103,7 +99,6 @@ export function useAppController() {
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [sendFriendRequestLoading, setSendFriendRequestLoading] = useState(false);
   const [acceptingRequestIds, setAcceptingRequestIds] = useState<string[]>([]);
-  const [openDirectChatLoading, setOpenDirectChatLoading] = useState(false);
 
   const currentYear = new Date().getFullYear();
   const previousYear = currentYear - 1;
@@ -113,38 +108,6 @@ export function useAppController() {
   const [accountLeaderboardLoading, setAccountLeaderboardLoading] = useState(false);
   const [currentYearRank, setCurrentYearRank] = useState<number | null>(null);
   const [previousYearRank, setPreviousYearRank] = useState<number | null>(null);
-
-  const [activeRoomId, setActiveRoomId] = useState('');
-  const [chatRoute, setChatRoute] = useState<ChatRoute>('inbox');
-  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-  const [activeRoomRole, setActiveRoomRole] = useState<'owner' | 'admin' | 'member' | null>(null);
-  const [approvalsRequired, setApprovalsRequired] = useState<ChatRoomInvite[]>([]);
-  const [showCreateGroup, setShowCreateGroup] = useState(false);
-  const [showInviteQueue, setShowInviteQueue] = useState(false);
-  const [showApprovalQueue, setShowApprovalQueue] = useState(false);
-  const [showRoomActions, setShowRoomActions] = useState(false);
-  const [groupName, setGroupName] = useState('');
-  const [inviteUsername, setInviteUsername] = useState('');
-  const [pendingInvites, setPendingInvites] = useState<ChatRoomInvite[]>([]);
-  const [approvedInvitesForMe, setApprovedInvitesForMe] = useState<ChatRoomInvite[]>([]);
-  const [inviteParticipantLabels, setInviteParticipantLabels] = useState<Record<string, string>>({});
-  const [inviteRoomLabels, setInviteRoomLabels] = useState<Record<string, string>>({});
-  const [chatRoomLabels, setChatRoomLabels] = useState<Record<string, string>>({});
-  const [chatRoomProfiles, setChatRoomProfiles] = useState<Record<string, Profile>>({});
-  const [chatUserLabels, setChatUserLabels] = useState<Record<string, string>>({});
-  const [messageBody, setMessageBody] = useState('');
-  const [chatRows, setChatRows] = useState<ChatMessage[]>([]);
-  const [chatError, setChatError] = useState('');
-  const [chatStatus, setChatStatus] = useState('');
-  const [chatRefreshInboxLoading, setChatRefreshInboxLoading] = useState(false);
-  const [chatCreateGroupLoading, setChatCreateGroupLoading] = useState(false);
-  const [chatJoinInviteIdsLoading, setChatJoinInviteIdsLoading] = useState<string[]>([]);
-  const [chatApproveInviteIdsLoading, setChatApproveInviteIdsLoading] = useState<string[]>([]);
-  const [chatRejectInviteIdsLoading, setChatRejectInviteIdsLoading] = useState<string[]>([]);
-  const [chatOpenRoomLoadingId, setChatOpenRoomLoadingId] = useState('');
-  const [chatProposeInviteLoading, setChatProposeInviteLoading] = useState(false);
-  const [chatRefreshMessagesLoading, setChatRefreshMessagesLoading] = useState(false);
-  const [chatSendMessageLoading, setChatSendMessageLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -209,18 +172,6 @@ export function useAppController() {
       setFeedReactionSubmittingEntryId('');
       setFriends([]);
       setIncomingRequests([]);
-      setActiveRoomId('');
-      setChatRoute('inbox');
-      setActiveRoomRole(null);
-      setChatRooms([]);
-      setPendingInvites([]);
-      setApprovedInvitesForMe([]);
-      setApprovalsRequired([]);
-      setInviteParticipantLabels({});
-      setInviteRoomLabels({});
-      setChatRoomLabels({});
-      setChatRoomProfiles({});
-      setChatUserLabels({});
       setProfilesById({});
       setAccountLeaderboardRows([]);
       setAccountLeaderboardError('');
@@ -231,74 +182,18 @@ export function useAppController() {
     void bootstrapAuthedState();
   }, [session]);
 
-  useEffect(() => {
-    if (!session || !activeRoomId) return;
-    const channel = supabase
-      .channel(`chat-room-${activeRoomId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `room_id=eq.${activeRoomId}`,
-        },
-        (payload: RealtimePostgresInsertPayload<{
-          id: string;
-          room_id: string;
-          sender_id: string;
-          body: string;
-          created_at: string;
-        }>) => {
-          const incoming = asRealtimeMessage(payload);
-          if (!incoming) return;
-          setChatRows((prev) => mergeMessages(prev, incoming));
-          void hydrateChatUserLabels([incoming.senderId]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [activeRoomId, session]);
-
-  useEffect(() => {
-    if (!session || !activeRoomId) return;
-    const channel = supabase
-      .channel(`chat-room-invites-${activeRoomId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'chat_room_invites',
-          filter: `room_id=eq.${activeRoomId}`,
-        },
-        () => {
-          void refreshPendingInvites(activeRoomId);
-        }
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [activeRoomId, session]);
-
   async function bootstrapAuthedState(): Promise<void> {
     setProfileLoading(true);
     setProfileError('');
     try {
-      const profile = await profileService.getMine();
+      const profile = await profileService.getMine(currentUserId);
       setMyProfile(profile);
       if (profile) {
         setProfilesById((prev) => ({ ...prev, [profile.id]: profile }));
       }
       if (profile) {
-        await Promise.all([refreshEntries(), refreshFeed(), refreshFriends(), refreshMyApprovedInvites()]);
-        const rooms = await refreshRooms();
+        await Promise.all([refreshEntries(), refreshFeed(), refreshFriends()]);
         await Promise.all([
-          refreshApprovalsRequired(rooms),
           refreshAccountRankings(profile.id),
           loadAccountLeaderboard(profile.id, selectedLeaderboardYear),
         ]);
@@ -314,7 +209,7 @@ export function useAppController() {
     setLoadingEntries(true);
     setEntryError('');
     try {
-      const list = await poopService.listMine(30);
+      const list = await poopService.listMine(30, currentUserId);
       setEntries(list);
     } catch (error) {
       setEntryError(error instanceof Error ? error.message : 'Failed to load entries.');
@@ -331,11 +226,25 @@ export function useAppController() {
       setFeedItems(items);
       const [comments, reactions] = await Promise.all([
         feedService.listCommentsByEntryIds(items.map((item) => item.entryId), 20),
-        feedService.listReactionsByEntryIds(items.map((item) => item.entryId)),
+        feedService.listReactionsByEntryIds(items.map((item) => item.entryId), currentUserId),
       ]);
       setFeedCommentsByEntry(comments);
       setFeedReactionsByEntry(reactions);
-      void hydrateProfilesByIds(items.map((item) => item.subjectId));
+      if (items.length > 0) {
+        setProfilesById((prev) =>
+          mergeProfiles(
+            prev,
+            items.map((item) => ({
+              id: item.subjectId,
+              username: item.username,
+              displayName: item.displayName,
+              shareFeed: prev[item.subjectId]?.shareFeed ?? true,
+              avatarUrl: item.avatarUrl,
+              avatarTint: item.avatarTint,
+            }))
+          )
+        );
+      }
     } catch (error) {
       setFeedError(error instanceof Error ? error.message : 'Failed to load feed.');
     } finally {
@@ -354,7 +263,7 @@ export function useAppController() {
     setFeedCommentSubmittingEntryId(entryId);
     setFeedError('');
     try {
-      const created = await feedService.addComment(entryId, draft);
+      const created = await feedService.addComment(entryId, draft, currentUserId);
       setFeedCommentDraftByEntry((prev) => ({ ...prev, [entryId]: '' }));
       setFeedCommentsByEntry((prev) => ({
         ...prev,
@@ -409,7 +318,7 @@ export function useAppController() {
     });
 
     try {
-      await feedService.toggleReaction(entryId, reaction);
+      await feedService.toggleReaction(entryId, reaction, currentUserId);
     } catch (error) {
       setFeedReactionsByEntry((prev) => ({
         ...prev,
@@ -426,8 +335,8 @@ export function useAppController() {
     setFriendError('');
     try {
       const [accepted, incoming] = await Promise.all([
-        friendsService.listAccepted(),
-        friendsService.listIncomingPending(),
+        friendsService.listAccepted(currentUserId),
+        friendsService.listIncomingPending(currentUserId),
       ]);
       setFriends(accepted);
       setIncomingRequests(incoming);
@@ -439,23 +348,6 @@ export function useAppController() {
       setFriendError(error instanceof Error ? error.message : 'Failed to load friends.');
     } finally {
       setFriendsLoading(false);
-    }
-  }
-
-  async function refreshRooms(): Promise<ChatRoom[]> {
-    setChatError('');
-    try {
-      const rooms = await chatService.listRooms();
-      setChatRooms(rooms);
-      try {
-        await hydrateChatRoomLabels(rooms);
-      } catch {
-        // Keep room list usable even if profile label hydration fails.
-      }
-      return rooms;
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to load rooms.');
-      return [];
     }
   }
 
@@ -488,185 +380,6 @@ export function useAppController() {
     return next;
   }
 
-  async function hydrateChatUserLabels(userIds: string[]): Promise<Record<string, string>> {
-    const hydratedProfiles = await hydrateProfilesByIds(userIds);
-    const next: Record<string, string> = {};
-    for (const profile of Object.values(hydratedProfiles)) {
-      next[profile.id] = formatProfileLabel(profile.displayName, profile.username);
-    }
-    if (Object.keys(next).length > 0) {
-      setChatUserLabels((prev) => ({ ...prev, ...next }));
-    }
-    return next;
-  }
-
-  async function hydrateChatRoomLabels(rooms: ChatRoom[]): Promise<void> {
-    const myUserId = session?.user.id;
-    const next: Record<string, string> = {};
-    for (const room of rooms) {
-      if (room.type !== 'dm') {
-        next[room.id] = room.name?.trim() || 'Untitled Group';
-      }
-    }
-
-    const directRooms = rooms.filter((room) => room.type === 'dm');
-    if (directRooms.length === 0 || !myUserId) {
-      for (const room of directRooms) {
-        next[room.id] = room.name?.trim() || 'Direct Chat';
-      }
-      setChatRoomLabels((prev) => ({ ...prev, ...next }));
-      return;
-    }
-
-    const dmRoomIds = directRooms.map((room) => room.id);
-    const { data, error } = await supabase
-      .from('chat_room_members')
-      .select('room_id,user_id')
-      .in('room_id', dmRoomIds);
-    if (error) throw error;
-
-    const otherUserByRoom = new Map<string, string>();
-    for (const row of data ?? []) {
-      const roomId = String(row.room_id);
-      const userId = String(row.user_id);
-      if (!roomId || !userId) continue;
-      if (userId !== myUserId) {
-        otherUserByRoom.set(roomId, userId);
-      } else if (!otherUserByRoom.has(roomId)) {
-        otherUserByRoom.set(roomId, userId);
-      }
-    }
-
-    const otherUserIds = Array.from(
-      new Set(
-        directRooms
-          .map((room) => otherUserByRoom.get(room.id))
-          .filter((id): id is string => Boolean(id) && id !== myUserId)
-      )
-    );
-    let hydratedUserLabels: Record<string, string> = {};
-    let hydratedProfilesById: Record<string, Profile> = {};
-    if (otherUserIds.length > 0) {
-      hydratedProfilesById = await hydrateProfilesByIds(otherUserIds);
-      hydratedUserLabels = await hydrateChatUserLabels(otherUserIds);
-    }
-
-    const nextRoomProfiles: Record<string, Profile> = {};
-
-    for (const room of directRooms) {
-      const otherUserId = otherUserByRoom.get(room.id);
-      const label =
-        (otherUserId && hydratedUserLabels[otherUserId]) ||
-        (otherUserId && chatUserLabels[otherUserId]) ||
-        room.name?.trim() ||
-        'Direct Chat';
-      next[room.id] = label;
-      if (otherUserId && hydratedProfilesById[otherUserId]) {
-        nextRoomProfiles[room.id] = hydratedProfilesById[otherUserId];
-      } else if (otherUserId && profilesById[otherUserId]) {
-        nextRoomProfiles[room.id] = profilesById[otherUserId];
-      }
-    }
-
-    setChatRoomLabels((prev) => ({ ...prev, ...next }));
-    setChatRoomProfiles((prev) => ({ ...prev, ...nextRoomProfiles }));
-  }
-
-  async function refreshApprovalsRequired(rooms: ChatRoom[] = chatRooms): Promise<void> {
-    if (rooms.length === 0) {
-      setApprovalsRequired([]);
-      return;
-    }
-    setChatError('');
-    try {
-      const nested = await Promise.all(
-        rooms.map(async (room) => {
-          const role = await chatService.getMyRoleInRoom(room.id);
-          if (role !== 'owner' && role !== 'admin') return [] as ChatRoomInvite[];
-          return chatService.listPendingInvites(room.id);
-        })
-      );
-      const all = nested.flat();
-      setApprovalsRequired(all);
-      await Promise.all([hydrateInviteParticipantLabels(all), hydrateInviteRoomLabels(all)]);
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to load approval queue.');
-    }
-  }
-
-  async function refreshPendingInvites(roomId: string): Promise<void> {
-    if (!roomId.trim()) {
-      setPendingInvites([]);
-      return;
-    }
-    setChatError('');
-    try {
-      const invites = await chatService.listPendingInvites(roomId);
-      setPendingInvites(invites);
-      await Promise.all([hydrateInviteParticipantLabels(invites), hydrateInviteRoomLabels(invites)]);
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to load pending invites.');
-    }
-  }
-
-  async function refreshActiveRoomRole(roomId: string): Promise<void> {
-    if (!roomId.trim()) {
-      setActiveRoomRole(null);
-      return;
-    }
-    setChatError('');
-    try {
-      const role = await chatService.getMyRoleInRoom(roomId);
-      setActiveRoomRole(role);
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to load room role.');
-    }
-  }
-
-  async function refreshMyApprovedInvites(): Promise<void> {
-    setChatError('');
-    try {
-      const invites = await chatService.listMyApprovedInvites();
-      setApprovedInvitesForMe(invites);
-      await Promise.all([hydrateInviteParticipantLabels(invites), hydrateInviteRoomLabels(invites)]);
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to load approved invites.');
-    }
-  }
-
-  async function hydrateInviteParticipantLabels(invites: ChatRoomInvite[]): Promise<void> {
-    const ids = Array.from(
-      new Set(
-        invites
-          .flatMap((invite) => [invite.proposerId, invite.inviteeId])
-          .filter((id) => Boolean(id))
-      )
-    );
-    if (ids.length === 0) return;
-
-    const hydratedProfiles = await hydrateProfilesByIds(ids);
-    const next: Record<string, string> = {};
-    for (const profile of Object.values(hydratedProfiles)) {
-      next[profile.id] = formatProfileLabel(profile.displayName, profile.username);
-    }
-    setInviteParticipantLabels((prev) => ({ ...prev, ...next }));
-  }
-
-  async function hydrateInviteRoomLabels(invites: ChatRoomInvite[]): Promise<void> {
-    const roomIds = Array.from(new Set(invites.map((invite) => invite.roomId).filter((id) => Boolean(id))));
-    if (roomIds.length === 0) return;
-
-    const { data, error } = await supabase.from('chat_rooms').select('id,name,room_type').in('id', roomIds);
-    if (error) throw error;
-
-    const next: Record<string, string> = {};
-    for (const row of data ?? []) {
-      const roomId = String(row.id);
-      const fallback = row.room_type === 'dm' ? 'Direct Chat' : 'Untitled Group';
-      next[roomId] = chatRoomLabels[roomId] ?? (row.name ? String(row.name) : fallback);
-    }
-    setInviteRoomLabels((prev) => ({ ...prev, ...next }));
-  }
 
   async function handleAuth(mode: 'sign-in' | 'sign-up'): Promise<void> {
     if (authSubmitting) return;
@@ -752,7 +465,7 @@ export function useAppController() {
       const profile = await profileService.upsertMine({
         username: onboardingUsername,
         displayName: onboardingDisplayName,
-      });
+      }, currentUserId);
       setMyProfile(profile);
       setProfilesById((prev) => ({ ...prev, [profile.id]: profile }));
       await Promise.all([
@@ -785,7 +498,7 @@ export function useAppController() {
           rating: ratingValue as 1 | 2 | 3 | 4 | 5,
           volume: volumeValue as 0 | 1 | 2 | 3 | 4,
           note: note.trim() || undefined,
-        });
+        }, currentUserId);
       } else {
         const currentLocation = entryComposerLocation ?? await getCurrentCoordinates();
         await poopService.createMine({
@@ -797,7 +510,7 @@ export function useAppController() {
           latitude: currentLocation?.latitude,
           longitude: currentLocation?.longitude,
           locationSource: currentLocation?.source,
-        });
+        }, currentUserId);
       }
       setNote('');
       setEditingEntryId(null);
@@ -856,7 +569,7 @@ export function useAppController() {
     setDeletingEntryIds((prev) => (prev.includes(entryId) ? prev : [...prev, entryId]));
     setEntryError('');
     try {
-      await poopService.deleteMine(entryId);
+      await poopService.deleteMine(entryId, currentUserId);
       await refreshEntries();
     } catch (error) {
       setEntryError(error instanceof Error ? error.message : 'Failed to delete entry.');
@@ -875,7 +588,7 @@ export function useAppController() {
         latitude,
         longitude,
         locationSource: 'manual',
-      });
+      }, currentUserId);
       setEntries((prev) => prev.map((entry) => (entry.id === updated.id ? updated : entry)));
     } catch (error) {
       setEntryError(error instanceof Error ? error.message : 'Failed to update entry location.');
@@ -895,7 +608,7 @@ export function useAppController() {
         setFriendError('No user found with that username.');
         return;
       }
-      await friendsService.sendRequest(profile.id);
+      await friendsService.sendRequest(profile.id, currentUserId);
       setFriendUsername('');
       setFriendStatus(`Request sent to @${profile.username}.`);
       await refreshFriends();
@@ -921,159 +634,12 @@ export function useAppController() {
     }
   }
 
-  async function handleOpenDirectChat(friendUserId: string): Promise<void> {
-    if (openDirectChatLoading) return;
-    setOpenDirectChatLoading(true);
-    setChatError('');
-    setChatStatus('');
-    try {
-      const roomId = await chatService.createOrGetDirectRoom(friendUserId);
-      setActiveRoomId(roomId);
-      setChatRoute('room');
-      setSocialSection('friends');
-      setTab('home');
-      const rooms = await refreshRooms();
-      await Promise.all([loadMessages(roomId), refreshPendingInvites(roomId), refreshActiveRoomRole(roomId)]);
-      await refreshApprovalsRequired(rooms);
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to open chat.');
-    } finally {
-      setOpenDirectChatLoading(false);
-    }
-  }
-
-  async function handleCreateGroup(): Promise<void> {
-    if (chatCreateGroupLoading) return;
-    setChatCreateGroupLoading(true);
-    setChatError('');
-    setChatStatus('');
-    try {
-      const room = await chatService.createGroupRoom(groupName);
-      setGroupName('');
-      setActiveRoomId(room.id);
-      setChatRoute('room');
-      setShowCreateGroup(false);
-      setChatStatus(`Created group "${room.name ?? 'Untitled'}".`);
-      const rooms = await refreshRooms();
-      await Promise.all([loadMessages(room.id), refreshPendingInvites(room.id), refreshActiveRoomRole(room.id)]);
-      await refreshApprovalsRequired(rooms);
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to create group.');
-    } finally {
-      setChatCreateGroupLoading(false);
-    }
-  }
-
-  async function handleOpenRoom(roomId: string): Promise<void> {
-    setChatOpenRoomLoadingId(roomId);
-    setChatError('');
-    setChatStatus('');
-    try {
-      setActiveRoomId(roomId);
-      setChatRoute('room');
-      await Promise.all([loadMessages(roomId), refreshPendingInvites(roomId), refreshActiveRoomRole(roomId)]);
-      setChatStatus('Room opened.');
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to open room.');
-    } finally {
-      setChatOpenRoomLoadingId('');
-    }
-  }
-
-  async function handleProposeInvite(): Promise<void> {
-    if (chatProposeInviteLoading) return;
-    if (!activeRoomId.trim()) {
-      setChatError('Open a room first.');
-      return;
-    }
-    if (activeRoom?.type === 'dm') {
-      setChatError('Direct chats do not support invite proposals.');
-      return;
-    }
-    setChatProposeInviteLoading(true);
-    setChatError('');
-    setChatStatus('');
-    try {
-      const profile = await profileService.findByUsername(inviteUsername);
-      if (!profile) {
-        setChatError('No user found with that username.');
-        return;
-      }
-      await chatService.proposeInvite(activeRoomId, profile.id);
-      setInviteUsername('');
-      setChatStatus(`Invite proposed for @${profile.username}.`);
-      await refreshPendingInvites(activeRoomId);
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to propose invite.');
-    } finally {
-      setChatProposeInviteLoading(false);
-    }
-  }
-
-  async function handleApproveInvite(inviteId: string): Promise<void> {
-    setChatApproveInviteIdsLoading((prev) => (prev.includes(inviteId) ? prev : [...prev, inviteId]));
-    setChatError('');
-    setChatStatus('');
-    try {
-      await chatService.approveInvite(inviteId);
-      setChatStatus('Invite approved.');
-      const rooms = await refreshRooms();
-      await Promise.all([refreshPendingInvites(activeRoomId), refreshMyApprovedInvites()]);
-      await refreshApprovalsRequired(rooms);
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to approve invite.');
-    } finally {
-      setChatApproveInviteIdsLoading((prev) => prev.filter((id) => id !== inviteId));
-    }
-  }
-
-  async function handleRejectInvite(inviteId: string): Promise<void> {
-    setChatRejectInviteIdsLoading((prev) => (prev.includes(inviteId) ? prev : [...prev, inviteId]));
-    setChatError('');
-    setChatStatus('');
-    try {
-      await chatService.rejectInvite(inviteId);
-      setChatStatus('Invite rejected.');
-      await refreshPendingInvites(activeRoomId);
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to reject invite.');
-    } finally {
-      setChatRejectInviteIdsLoading((prev) => prev.filter((id) => id !== inviteId));
-    }
-  }
-
-  async function handleJoinApprovedInvite(inviteId: string): Promise<void> {
-    setChatJoinInviteIdsLoading((prev) => (prev.includes(inviteId) ? prev : [...prev, inviteId]));
-    setChatError('');
-    setChatStatus('');
-    try {
-      const invite = approvedInvitesForMe.find((item) => item.id === inviteId);
-      await chatService.joinApprovedInvite(inviteId);
-      setChatStatus('Joined group invite.');
-      const rooms = await refreshRooms();
-      await Promise.all([refreshMyApprovedInvites()]);
-      await refreshApprovalsRequired(rooms);
-      if (invite) {
-        setActiveRoomId(invite.roomId);
-        setChatRoute('room');
-        await Promise.all([
-          loadMessages(invite.roomId),
-          refreshPendingInvites(invite.roomId),
-          refreshActiveRoomRole(invite.roomId),
-        ]);
-      }
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to join invite.');
-    } finally {
-      setChatJoinInviteIdsLoading((prev) => prev.filter((id) => id !== inviteId));
-    }
-  }
 
   async function refreshAccountRankings(profileId: string): Promise<void> {
     try {
       const [rowsCurrent, rowsPrevious] = await Promise.all([
-        leaderboardService.listYear(currentYear),
-        leaderboardService.listYear(previousYear),
+        leaderboardService.listYear(currentYear, currentUserId),
+        leaderboardService.listYear(previousYear, currentUserId),
       ]);
       setCurrentYearRank(rowsCurrent.find((row) => row.subjectId === profileId)?.rank ?? null);
       setPreviousYearRank(rowsPrevious.find((row) => row.subjectId === profileId)?.rank ?? null);
@@ -1087,7 +653,7 @@ export function useAppController() {
     setAccountLeaderboardLoading(true);
     setAccountLeaderboardError('');
     try {
-      const rows = await leaderboardService.listYear(year);
+      const rows = await leaderboardService.listYear(year, currentUserId);
       setAccountLeaderboardRows(rows);
       void hydrateProfilesByIds(rows.map((row) => row.subjectId));
       const myRank = rows.find((row) => row.subjectId === profileId)?.rank ?? null;
@@ -1112,50 +678,6 @@ export function useAppController() {
     await loadAccountLeaderboard(myProfile.id, selectedLeaderboardYear);
   }
 
-  async function loadMessages(roomId: string): Promise<void> {
-    if (!roomId.trim()) {
-      setChatRows([]);
-      return;
-    }
-    setChatError('');
-    try {
-      const rows = await chatService.listMessages(roomId.trim(), 100);
-      setChatRows(rows);
-      try {
-        await hydrateChatUserLabels(rows.map((row) => row.senderId));
-      } catch {
-        // Ignore participant label failures; messages should still render.
-      }
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to load messages.');
-    }
-  }
-
-  async function handleSendMessage(): Promise<void> {
-    if (chatSendMessageLoading) return;
-    if (!activeRoomId.trim()) {
-      setChatError('Open chat from Social tab first.');
-      return;
-    }
-    if (!messageBody.trim()) return;
-    setChatSendMessageLoading(true);
-    setChatError('');
-    try {
-      const sent = await chatService.sendMessage(activeRoomId.trim(), messageBody.trim());
-      setChatRows((prev) => mergeMessages(prev, sent));
-      try {
-        await hydrateChatUserLabels([sent.senderId]);
-      } catch {
-        // Ignore participant label failures for sent messages.
-      }
-      setMessageBody('');
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : 'Failed to send message.');
-    } finally {
-      setChatSendMessageLoading(false);
-    }
-  }
-
   async function handleSignOut(): Promise<void> {
     if (signingOut) return;
     setSigningOut(true);
@@ -1172,7 +694,7 @@ export function useAppController() {
     setToggleShareFeedLoading(true);
     setProfileError('');
     try {
-      const updated = await profileService.setShareFeed(!myProfile.shareFeed);
+      const updated = await profileService.setShareFeed(!myProfile.shareFeed, currentUserId);
       setMyProfile(updated);
       await refreshFeed();
     } catch (error) {
@@ -1223,7 +745,8 @@ export function useAppController() {
       const updated = await profileService.uploadAvatar(
         asset.uri,
         asset.mimeType ?? 'image/jpeg',
-        asset.base64 ?? undefined
+        asset.base64 ?? undefined,
+        currentUserId
       );
       setMyProfile(updated);
       setProfilesById((prev) => ({ ...prev, [updated.id]: updated }));
@@ -1237,33 +760,6 @@ export function useAppController() {
       setAvatarUploading(false);
     }
   }
-
-  async function handleRefreshChatInbox(): Promise<void> {
-    if (chatRefreshInboxLoading) return;
-    setChatRefreshInboxLoading(true);
-    try {
-      const rooms = await refreshRooms();
-      await Promise.all([refreshMyApprovedInvites(), refreshApprovalsRequired(rooms)]);
-    } finally {
-      setChatRefreshInboxLoading(false);
-    }
-  }
-
-  async function handleRefreshMessages(): Promise<void> {
-    if (chatRefreshMessagesLoading) return;
-    setChatRefreshMessagesLoading(true);
-    try {
-      await loadMessages(activeRoomId);
-    } finally {
-      setChatRefreshMessagesLoading(false);
-    }
-  }
-
-  const activeRoom = chatRooms.find((room) => room.id === activeRoomId) ?? null;
-  const approvalsByRoom = approvalsRequired.reduce<Record<string, number>>((acc, invite) => {
-    acc[invite.roomId] = (acc[invite.roomId] ?? 0) + 1;
-    return acc;
-  }, {});
 
   async function handleToggleThemeMode(): Promise<void> {
     const nextMode: ThemeMode = themeMode === 'dark' ? 'light' : 'dark';
@@ -1368,11 +864,9 @@ export function useAppController() {
     friendsLoading,
     sendFriendRequestLoading,
     acceptingRequestIds,
-    openDirectChatLoading,
     handleSendFriendRequest,
     refreshFriends,
     handleAcceptRequest,
-    handleOpenDirectChat,
     currentYear,
     previousYear,
     selectedLeaderboardYear,
@@ -1383,57 +877,7 @@ export function useAppController() {
     previousYearRank,
     handleSelectLeaderboardYear,
     refreshAccountLeaderboard,
-    chatRoute,
-    setChatRoute,
-    activeRoomId,
-    activeRoom,
-    activeRoomRole,
-    chatRooms,
-    approvalsByRoom,
-    approvalsRequired,
-    approvedInvitesForMe,
-    pendingInvites,
-    inviteParticipantLabels,
-    inviteRoomLabels,
-    chatRoomLabels,
-    chatRoomProfiles,
-    chatUserLabels,
-    showCreateGroup,
-    setShowCreateGroup,
-    showInviteQueue,
-    setShowInviteQueue,
-    showApprovalQueue,
-    setShowApprovalQueue,
-    showRoomActions,
-    setShowRoomActions,
-    groupName,
-    setGroupName,
-    inviteUsername,
-    setInviteUsername,
-    messageBody,
-    setMessageBody,
-    chatRows,
-    chatStatus,
-    chatError,
-    chatRefreshInboxLoading,
-    chatCreateGroupLoading,
-    chatJoinInviteIdsLoading,
-    chatApproveInviteIdsLoading,
-    chatRejectInviteIdsLoading,
-    chatOpenRoomLoadingId,
-    chatProposeInviteLoading,
-    chatRefreshMessagesLoading,
-    chatSendMessageLoading,
     currentUserId: session?.user.id ?? '',
-    handleRefreshChatInbox,
-    handleCreateGroup,
-    handleJoinApprovedInvite,
-    handleApproveInvite,
-    handleRejectInvite,
-    handleOpenRoom,
-    handleProposeInvite,
-    handleRefreshMessages,
-    handleSendMessage,
   };
 }
 
@@ -1484,31 +928,6 @@ async function getCurrentCoordinates(): Promise<{ latitude: number; longitude: n
   } catch {
     return null;
   }
-}
-
-function asRealtimeMessage(
-  payload: RealtimePostgresInsertPayload<{
-    id: string;
-    room_id: string;
-    sender_id: string;
-    body: string;
-    created_at: string;
-  }>
-): ChatMessage | null {
-  const row = payload.new;
-  if (!row?.id || !row.room_id || !row.sender_id || !row.body || !row.created_at) return null;
-  return {
-    id: row.id,
-    roomId: row.room_id,
-    senderId: row.sender_id,
-    body: row.body,
-    createdAt: row.created_at,
-  };
-}
-
-function mergeMessages(existing: ChatMessage[], incoming: ChatMessage): ChatMessage[] {
-  if (existing.some((message) => message.id === incoming.id)) return existing;
-  return [incoming, ...existing];
 }
 
 function normalizePhone(input: string): string {
