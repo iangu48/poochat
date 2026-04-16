@@ -621,12 +621,13 @@ export const styles = StyleSheet.create({
     backgroundColor: 'rgba(247, 250, 255, 0.96)',
   },
   tabButton: {
-    minWidth: 96,
+    flex: 1,
+    minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
     paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     borderRadius: 999,
   },
   tabButtonLight: {

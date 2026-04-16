@@ -27,6 +27,7 @@ type AuthMethod = 'phone' | 'email';
 export type SocialSection = 'feed' | 'friends';
 export type ThemeMode = 'dark' | 'light';
 const THEME_MODE_KEY = 'poochat.theme_mode';
+type RefreshOptions = { minDurationMs?: number };
 
 export function useAppController() {
   const [session, setSession] = useState<Session | null>(null);
@@ -205,7 +206,8 @@ export function useAppController() {
     }
   }
 
-  async function refreshEntries(): Promise<void> {
+  async function refreshEntries(options: RefreshOptions = {}): Promise<void> {
+    const startedAt = Date.now();
     setLoadingEntries(true);
     setEntryError('');
     try {
@@ -214,11 +216,13 @@ export function useAppController() {
     } catch (error) {
       setEntryError(error instanceof Error ? error.message : 'Failed to load entries.');
     } finally {
+      await waitForMinimumDuration(startedAt, options.minDurationMs);
       setLoadingEntries(false);
     }
   }
 
-  async function refreshFeed(): Promise<void> {
+  async function refreshFeed(options: RefreshOptions = {}): Promise<void> {
+    const startedAt = Date.now();
     setFeedLoading(true);
     setFeedError('');
     try {
@@ -248,6 +252,7 @@ export function useAppController() {
     } catch (error) {
       setFeedError(error instanceof Error ? error.message : 'Failed to load feed.');
     } finally {
+      await waitForMinimumDuration(startedAt, options.minDurationMs);
       setFeedLoading(false);
     }
   }
@@ -330,7 +335,8 @@ export function useAppController() {
     }
   }
 
-  async function refreshFriends(): Promise<void> {
+  async function refreshFriends(options: RefreshOptions = {}): Promise<void> {
+    const startedAt = Date.now();
     setFriendsLoading(true);
     setFriendError('');
     try {
@@ -347,6 +353,7 @@ export function useAppController() {
     } catch (error) {
       setFriendError(error instanceof Error ? error.message : 'Failed to load friends.');
     } finally {
+      await waitForMinimumDuration(startedAt, options.minDurationMs);
       setFriendsLoading(false);
     }
   }
@@ -649,7 +656,8 @@ export function useAppController() {
     }
   }
 
-  async function loadAccountLeaderboard(profileId: string, year: number): Promise<void> {
+  async function loadAccountLeaderboard(profileId: string, year: number, options: RefreshOptions = {}): Promise<void> {
+    const startedAt = Date.now();
     setAccountLeaderboardLoading(true);
     setAccountLeaderboardError('');
     try {
@@ -663,6 +671,7 @@ export function useAppController() {
       setAccountLeaderboardError(error instanceof Error ? error.message : 'Failed to load leaderboard.');
       setAccountLeaderboardRows([]);
     } finally {
+      await waitForMinimumDuration(startedAt, options.minDurationMs);
       setAccountLeaderboardLoading(false);
     }
   }
@@ -673,9 +682,9 @@ export function useAppController() {
     await loadAccountLeaderboard(myProfile.id, year);
   }
 
-  async function refreshAccountLeaderboard(): Promise<void> {
+  async function refreshAccountLeaderboard(options: RefreshOptions = {}): Promise<void> {
     if (!myProfile) return;
-    await loadAccountLeaderboard(myProfile.id, selectedLeaderboardYear);
+    await loadAccountLeaderboard(myProfile.id, selectedLeaderboardYear, options);
   }
 
   async function handleSignOut(): Promise<void> {
@@ -944,6 +953,13 @@ function normalizePhone(input: string): string {
   if (/^\d{10}$/.test(usDigits)) return `+1${usDigits}`;
   if (/^\d{11,15}$/.test(usDigits)) return `+${usDigits}`;
   throw new Error('Use phone format like +15551234567.');
+}
+
+async function waitForMinimumDuration(startedAt: number, minDurationMs = 0): Promise<void> {
+  const remaining = minDurationMs - (Date.now() - startedAt);
+  if (remaining > 0) {
+    await new Promise((resolve) => setTimeout(resolve, remaining));
+  }
 }
 
 function formatProfileLabel(displayName: unknown, username: unknown): string {

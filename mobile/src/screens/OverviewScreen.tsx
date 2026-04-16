@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Platform, ScrollView, StatusBar, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, RefreshControl, ScrollView, StatusBar, Text, View } from 'react-native';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import type { PoopEntry } from '../types/domain';
 import { styles } from './styles';
@@ -43,6 +43,7 @@ type Props = {
   onEntryTimeChange: (value: string) => void;
   onAddEntry: () => void;
   onCloseComposer: () => void;
+  onRefreshEntries: () => void;
 };
 
 export function OverviewScreen(props: Props) {
@@ -71,6 +72,7 @@ export function OverviewScreen(props: Props) {
     onEntryTimeChange,
     onAddEntry,
     onCloseComposer,
+    onRefreshEntries,
   } = props;
   const colors = getThemePalette(themeMode);
   const topInset = Platform.OS === 'ios' ? 54 : Math.max(16, (StatusBar.currentHeight ?? 0) + 8);
@@ -85,7 +87,6 @@ export function OverviewScreen(props: Props) {
   const [draftDateTime, setDraftDateTime] = useState<Date | null>(null);
   const [pickerMaxDate, setPickerMaxDate] = useState<Date>(new Date());
   const entryComposerScrollRef = useRef<ScrollView | null>(null);
-
   const now = useMemo(() => new Date(), []);
   const monthLabel = visibleMonthStart.toLocaleString([], { month: 'long', year: 'numeric' });
   const monthSummary = useMemo(() => getMonthSummary(entries, visibleMonthStart, now), [entries, visibleMonthStart, now]);
@@ -179,7 +180,22 @@ export function OverviewScreen(props: Props) {
       <ScrollView
         style={{ backgroundColor: colors.background }}
         contentContainerStyle={[styles.screen, { paddingTop: topInset, backgroundColor: colors.background }]}
+        alwaysBounceVertical
+        contentInsetAdjustmentBehavior="never"
+        refreshControl={
+          <RefreshControl
+            refreshing={loadingEntries}
+            onRefresh={onRefreshEntries}
+            tintColor={colors.text}
+            progressViewOffset={0}
+          />
+        }
       >
+        {loadingEntries ? (
+          <View style={styles.refreshGapIndicator}>
+            <ActivityIndicator size="small" color={colors.text} />
+          </View>
+        ) : null}
         <View style={styles.homeDetailsPage}>
           <MonthOverviewSection
             themeMode={themeMode}

@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { InsightsScreen } from './src/screens/InsightsScreen';
 import { LoadingScreen } from './src/screens/LoadingScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { OverviewScreen } from './src/screens/OverviewScreen';
@@ -168,6 +169,7 @@ export default function App() {
     onEntryTimeChange: app.setEntryTime,
     onAddEntry: () => void app.handleAddEntry(),
     onCloseComposer: app.closeEntryComposer,
+    onRefreshEntries: () => void app.refreshEntries({ minDurationMs: 700 }),
   };
 
   const accountProps = {
@@ -185,7 +187,7 @@ export default function App() {
     leaderboardError: app.accountLeaderboardError,
     leaderboardLoading: app.accountLeaderboardLoading,
     onSelectLeaderboardYear: (year: number) => void app.handleSelectLeaderboardYear(year),
-    onRefreshLeaderboard: () => void app.refreshAccountLeaderboard(),
+    onRefreshLeaderboard: () => void app.refreshAccountLeaderboard({ minDurationMs: 700 }),
     onToggleShareFeed: () => void app.handleToggleShareFeed(),
     toggleShareFeedLoading: app.toggleShareFeedLoading,
     onUploadAvatar: () => void app.handleUploadAvatar(),
@@ -193,6 +195,14 @@ export default function App() {
     signingOut: app.signingOut,
     onToggleThemeMode: () => void app.handleToggleThemeMode(),
     onSignOut: () => void app.handleSignOut(),
+  };
+
+  const insightsProps = {
+    themeMode: app.themeMode,
+    entries: app.entries,
+    loadingEntries: app.loadingEntries,
+    entryError: app.entryError,
+    onRefreshInsights: () => void app.refreshEntries({ minDurationMs: 700 }),
   };
 
   return (
@@ -235,6 +245,23 @@ export default function App() {
               pointerEvents={app.tab === 'home' ? 'auto' : 'none'}
             >
               <HomeScreen {...homeProps} />
+            </View>
+            <View
+              style={[
+                styles.root,
+                isLightMode ? styles.rootLight : null,
+                {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  opacity: app.tab === 'insights' ? 1 : 0,
+                },
+              ]}
+              pointerEvents={app.tab === 'insights' ? 'auto' : 'none'}
+            >
+              <InsightsScreen {...insightsProps} />
             </View>
             <View
               style={[

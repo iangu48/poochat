@@ -67,7 +67,6 @@ export function FriendsScreen(props: Props) {
   const [showIncomingRequests, setShowIncomingRequests] = useState(false);
   const [selectedFeedEntryId, setSelectedFeedEntryId] = useState<string | null>(null);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
-  const [pullDistance, setPullDistance] = useState(0);
   const hasFriendDropdown = showFriendActions || showIncomingRequests;
   const screenRefreshing = socialSection === 'feed' ? feedLoading : friendsLoading;
 
@@ -173,17 +172,6 @@ export function FriendsScreen(props: Props) {
     <>
       <ScrollView
         contentContainerStyle={[styles.screen, styles.socialWrap]}
-        onScroll={(event) => {
-          const y = event.nativeEvent.contentOffset.y;
-          setPullDistance(Math.max(0, Math.min(72, -y)));
-        }}
-        onScrollEndDrag={() => {
-          if (!screenRefreshing) setPullDistance(0);
-        }}
-        onMomentumScrollEnd={() => {
-          if (!screenRefreshing) setPullDistance(0);
-        }}
-        scrollEventThrottle={16}
         alwaysBounceVertical
         contentInsetAdjustmentBehavior="never"
         refreshControl={
@@ -195,12 +183,9 @@ export function FriendsScreen(props: Props) {
           />
         }
       >
-        {screenRefreshing || pullDistance > 0 ? (
-          <View style={[styles.refreshGapIndicator, { height: screenRefreshing ? 48 : pullDistance }]}>
-            {!screenRefreshing ? (
-              <Text style={[styles.refreshHint, { opacity: Math.min(1, pullDistance / 42) }]}>Pull to refresh</Text>
-            ) : null}
-            {screenRefreshing ? <ActivityIndicator size="small" color="#f0f6fc" /> : null}
+        {screenRefreshing ? (
+          <View style={styles.refreshGapIndicator}>
+            <ActivityIndicator size="small" color="#f0f6fc" />
           </View>
         ) : null}
         <View style={styles.socialHeader}>

@@ -62,22 +62,10 @@ export function AccountScreen({
   const dangerButtonTextColor = themeMode === 'light' ? '#7c1d1d' : '#ffffff';
   const switchTrackColor = themeMode === 'light' ? { false: '#cfd8e3', true: '#9fc2fa' } : { false: '#2f3742', true: '#2d74da' };
   const switchThumbColor = themeMode === 'light' ? '#ffffff' : '#f0f6fc';
-  const [pullDistance, setPullDistance] = useState(0);
   return (
     <ScrollView
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={[styles.screen, { paddingTop: Math.max(12, insets.top + 8), backgroundColor: colors.background }]}
-      onScroll={(event) => {
-        const y = event.nativeEvent.contentOffset.y;
-        setPullDistance(Math.max(0, Math.min(72, -y)));
-      }}
-      onScrollEndDrag={() => {
-        if (!leaderboardLoading) setPullDistance(0);
-      }}
-      onMomentumScrollEnd={() => {
-        if (!leaderboardLoading) setPullDistance(0);
-      }}
-      scrollEventThrottle={16}
       alwaysBounceVertical
       contentInsetAdjustmentBehavior="never"
       refreshControl={
@@ -89,12 +77,9 @@ export function AccountScreen({
         />
       }
     >
-      {leaderboardLoading || pullDistance > 0 ? (
-        <View style={[styles.refreshGapIndicator, { height: leaderboardLoading ? 48 : pullDistance }]}>
-          {!leaderboardLoading ? (
-            <Text style={[styles.refreshHint, { color: colors.mutedText, opacity: Math.min(1, pullDistance / 42) }]}>Pull to refresh</Text>
-          ) : null}
-          {leaderboardLoading ? <ActivityIndicator size="small" color={colors.text} /> : null}
+      {leaderboardLoading ? (
+        <View style={styles.refreshGapIndicator}>
+          <ActivityIndicator size="small" color={colors.text} />
         </View>
       ) : null}
       <Text style={[styles.title, { color: colors.text, marginTop: 0 }]}>Account</Text>

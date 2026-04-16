@@ -2,7 +2,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { styles } from './styles';
 
-export type Tab = 'overview' | 'home' | 'account';
+export type Tab = 'overview' | 'home' | 'insights' | 'account';
 type ThemeMode = 'dark' | 'light';
 
 type Props = {
@@ -19,6 +19,7 @@ export function TabBar({ tab, onTabChange, themeMode }: Props) {
       <View style={[styles.tabRow, isLight ? styles.tabRowLight : null]}>
         <TabButton tab={tab} label="Overview" icon="analytics" value="overview" onPress={onTabChange} iconColor={iconColor} isLight={isLight} />
         <TabButton tab={tab} label="Home" icon="home" value="home" onPress={onTabChange} iconColor={iconColor} isLight={isLight} />
+        <TabButton tab={tab} label="Insights" icon="pulse" value="insights" onPress={onTabChange} iconColor={iconColor} isLight={isLight} />
         <TabButton tab={tab} label="Account" icon="person" value="account" onPress={onTabChange} iconColor={iconColor} isLight={isLight} />
       </View>
     </View>
