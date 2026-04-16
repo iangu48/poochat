@@ -299,6 +299,7 @@ export function HomeScreen(props: Props) {
           themeMode={themeMode}
           entries={todayMapEntries}
           currentUserId={currentUserId}
+          profilesById={profilesById}
           selectedEntryId={selectedFeedEntryId}
           addEntryLoading={addEntryLoading}
           updatingEntryLocationIds={updatingEntryLocationIds}

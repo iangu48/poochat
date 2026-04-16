@@ -2,10 +2,13 @@ import type { PoopEntry } from '../../types/domain';
 
 export type EntryLocation = {
   entryId: string;
+  entryIds: string[];
+  userId: string;
   latitude: number;
   longitude: number;
   rating: number;
   occurredAt: string;
+  count: number;
 };
 
 export type MapCluster = {
@@ -15,6 +18,7 @@ export type MapCluster = {
   count: number;
   entryIds: string[];
   representativeEntryId: string;
+  locationCount: number;
 };
 
 export type MapRegion = {
@@ -29,10 +33,13 @@ export function getEntryLocations(entries: PoopEntry[]): EntryLocation[] {
     .filter((entry) => Number.isFinite(entry.latitude) && Number.isFinite(entry.longitude))
     .map((entry) => ({
       entryId: entry.id,
+      entryIds: [entry.id],
+      userId: entry.userId,
       latitude: Number(entry.latitude),
       longitude: Number(entry.longitude),
       rating: Number(entry.rating),
       occurredAt: entry.occurredAt,
+      count: 1,
     }));
 }
 
@@ -71,7 +78,24 @@ export function clusterEntryLocations(locations: EntryLocation[], region: MapReg
   }
 
   return Array.from(grouped.entries()).map(([key, list]) => {
-    const centroid = list.reduce(
+    const mergedByUser = Array.from(list.reduce((acc, location) => {
+      const current = acc.get(location.userId);
+      if (!current) {
+        acc.set(location.userId, { ...location });
+        return acc;
+      }
+      const nextRepresentative = new Date(location.occurredAt).getTime() > new Date(current.occurredAt).getTime()
+        ? location
+        : current;
+      acc.set(location.userId, {
+        ...nextRepresentative,
+        entryIds: [...current.entryIds, ...location.entryIds],
+        count: current.count + location.count,
+      });
+      return acc;
+    }, new Map<string, EntryLocation>()).values());
+
+    const centroid = mergedByUser.reduce(
       (acc, item) => {
         acc.latitude += item.latitude;
         acc.longitude += item.longitude;
@@ -79,14 +103,15 @@ export function clusterEntryLocations(locations: EntryLocation[], region: MapReg
       },
       { latitude: 0, longitude: 0 },
     );
-    const representative = [...list].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())[0];
+    const representative = [...mergedByUser].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())[0];
     return {
       key,
-      latitude: centroid.latitude / list.length,
-      longitude: centroid.longitude / list.length,
-      count: list.length,
-      entryIds: list.map((item) => item.entryId),
+      latitude: centroid.latitude / mergedByUser.length,
+      longitude: centroid.longitude / mergedByUser.length,
+      count: mergedByUser.reduce((sum, item) => sum + item.count, 0),
+      entryIds: mergedByUser.flatMap((item) => item.entryIds),
       representativeEntryId: representative.entryId,
+      locationCount: mergedByUser.length,
     };
   });
 }

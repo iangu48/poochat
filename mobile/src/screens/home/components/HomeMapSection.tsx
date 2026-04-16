@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { PoopEntry } from '../../../types/domain';
+import type { PoopEntry, Profile } from '../../../types/domain';
 import { styles } from '../../styles';
 import { getThemePalette, type ThemeMode } from '../../../theme';
-import { clusterEntryLocations, getEntryLocations, getInitialRegion, type MapRegion } from '../mapUtils';
+import { getEntryLocations, getInitialRegion, type MapRegion } from '../mapUtils';
 
 const MapsLib = loadMapsLibrary();
-const MapViewComponent = MapsLib?.MapView ?? null;
+const MapViewComponent = MapsLib?.ClusteredMapView ?? null;
 const MarkerComponent = MapsLib?.Marker ?? null;
 const CircleComponent = MapsLib?.Circle ?? null;
 const CROSSHAIR_DEFAULT_X_RATIO = 0.5;
@@ -21,6 +21,7 @@ type Props = {
   themeMode: ThemeMode;
   entries: PoopEntry[];
   currentUserId: string;
+  profilesById: Record<string, Profile>;
   selectedEntryId?: string | null;
   addEntryLoading: boolean;
   updatingEntryLocationIds: string[];
@@ -39,6 +40,7 @@ export function HomeMapSection(props: Props) {
     themeMode,
     entries,
     currentUserId,
+    profilesById,
     selectedEntryId = null,
     addEntryLoading,
     updatingEntryLocationIds,
@@ -73,6 +75,7 @@ export function HomeMapSection(props: Props) {
   const [projectionBias, setProjectionBias] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
   const [mapIsMoving, setMapIsMoving] = useState(false);
   const mapRef = useRef<any>(null);
+  const superClusterRef = useRef<any>(null);
   const crosshairRef = useRef<View | null>(null);
   const suppressNextMapPressClearRef = useRef(false);
   const composerDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,25 +83,6 @@ export function HomeMapSection(props: Props) {
   const mapIsMovingRef = useRef(false);
   const hasInitialRegionSettledRef = useRef(false);
   const programmaticMoveRef = useRef(false);
-  const clusters = useMemo(() => clusterEntryLocations(locations, region), [locations, region]);
-  const mapMarkers = useMemo(() => {
-    if (Platform.OS === 'ios') {
-      return locations.map((location) => ({
-        key: `entry-${location.entryId}`,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        count: 1,
-        representativeEntryId: location.entryId,
-      }));
-    }
-    return clusters.map((cluster) => ({
-      key: `cluster-${cluster.key}`,
-      latitude: cluster.latitude,
-      longitude: cluster.longitude,
-      count: cluster.count,
-      representativeEntryId: cluster.representativeEntryId,
-    }));
-  }, [clusters, locations]);
   const entryById = useMemo(() => {
     const next = new Map<string, PoopEntry>();
     for (const entry of entries) next.set(entry.id, entry);
@@ -516,6 +500,59 @@ export function HomeMapSection(props: Props) {
             style={[styles.homeMap, fullScreen ? styles.homeMapFull : null]}
             initialRegion={initialRegionRef.current}
             userInterfaceStyle={themeMode}
+            clusterColor={themeMode === 'light' ? '#2d74da' : '#1f6feb'}
+            clusterTextColor="#ffffff"
+            radius={44}
+            animationEnabled={Platform.OS === 'ios'}
+            tracksViewChanges={false}
+            preserveClusterPressBehavior
+            superClusterRef={superClusterRef}
+            renderCluster={(cluster: any) => {
+              const pointCount = Number(cluster?.properties?.point_count ?? 0);
+              const clusterId = Number(cluster?.properties?.cluster_id);
+              const leaves = (
+                Number.isFinite(clusterId)
+                && superClusterRef.current
+                && typeof superClusterRef.current.getLeaves === 'function'
+              )
+                ? superClusterRef.current.getLeaves(clusterId, Infinity)
+                : [];
+              const representativeUser = getClusterRepresentativeUser({
+                leaves,
+                currentUserId,
+                profilesById,
+              });
+              const coordinate = {
+                latitude: Number(cluster?.geometry?.coordinates?.[1] ?? 0),
+                longitude: Number(cluster?.geometry?.coordinates?.[0] ?? 0),
+              };
+              return (
+                <ClusterMapMarker
+                  key={`cluster-${String(cluster?.id ?? clusterId)}`}
+                  MarkerComponent={MarkerComponent}
+                  clusterKey={`cluster-${String(cluster?.id ?? clusterId)}`}
+                  coordinate={coordinate}
+                  representativeUser={representativeUser}
+                  pointCount={pointCount}
+                  themeMode={themeMode}
+                  onPress={cluster.onPress}
+                />
+              );
+            }}
+            onClusterPress={(_cluster: any, markers?: any[]) => {
+              const coordinates = (markers ?? [])
+                .map((marker) => {
+                  const longitude = Number(marker?.geometry?.coordinates?.[0]);
+                  const latitude = Number(marker?.geometry?.coordinates?.[1]);
+                  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+                  return { latitude, longitude };
+                })
+                .filter((item): item is { latitude: number; longitude: number } => item != null);
+              if (coordinates.length === 0) return;
+              const nextRegion = getClusterPressRegion(coordinates);
+              mapRef.current?.animateToRegion?.(nextRegion, 280);
+              setRegion(nextRegion);
+            }}
             onLayout={(event: any) => {
               const width = Number(event?.nativeEvent?.layout?.width);
               const height = Number(event?.nativeEvent?.layout?.height);
@@ -569,6 +606,7 @@ export function HomeMapSection(props: Props) {
               <MarkerComponent
                 key="current-location-center"
                 coordinate={currentLocation}
+                cluster={false}
                 tracksViewChanges={false}
                 anchor={{ x: 0.5, y: 0.5 }}
                 zIndex={10000}
@@ -584,47 +622,38 @@ export function HomeMapSection(props: Props) {
                 />
               </MarkerComponent>
             ) : null}
-            {mapMarkers.map((marker) => {
-              if (marker.count > 1) {
-                return (
-                  <MarkerComponent
-                    key={marker.key}
-                    coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
-                    pinColor="#1f6feb"
-                    onPress={() => {
-                      void centerTargetAtCrosshair(
-                        { latitude: marker.latitude, longitude: marker.longitude },
-                        380,
-                        { x: MARKER_FOCUS_X_RATIO, y: MARKER_FOCUS_Y_RATIO },
-                        false,
-                      );
-                    }}
-                  />
-                );
-              }
-
-              const entry = entryById.get(marker.representativeEntryId);
+            {locations.map((location) => {
+              const entry = entryById.get(location.entryId);
               if (!entry) return null;
+              const isSelected = selectedMarkerEntryId === entry.id;
               const canDragEntry = entry.userId === currentUserId;
+              const tracksViewChanges = useTracksViewChanges(isSelected);
+              const profile = profilesById[entry.userId];
+              const markerColor = entry.userId === currentUserId
+                ? getPoopMarkerColor(Number(entry.bristolType))
+                : (profile?.avatarTint ?? '#6b7c93');
               return (
                 <MarkerComponent
-                  key={marker.key}
-                  coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
+                  key={`entry-${entry.id}`}
+                  coordinate={{ latitude: location.latitude, longitude: location.longitude }}
                   draggable={canDragEntry}
-                  tracksViewChanges
+                  tracksViewChanges={tracksViewChanges}
+                  userId={entry.userId}
+                  avatarUrl={profile?.avatarUrl ?? null}
+                  avatarTint={profile?.avatarTint ?? '#6b7c93'}
                   onPress={() => {
                     suppressNextMapPressClearRef.current = true;
                     setSelectedMarkerEntryId(entry.id);
                     onPressEntryMarker?.(entry.id);
                     void centerTargetAtCrosshair(
-                      { latitude: marker.latitude, longitude: marker.longitude },
+                      { latitude: location.latitude, longitude: location.longitude },
                       380,
                       { x: MARKER_FOCUS_X_RATIO, y: MARKER_FOCUS_Y_RATIO },
                       false,
                     );
                   }}
                   onDragEnd={(event: { nativeEvent?: { coordinate?: { latitude?: number; longitude?: number } } }) => {
-                    if (!canDragEntry) return;
+                    if (entry.userId !== currentUserId) return;
                     const latitude = Number(event?.nativeEvent?.coordinate?.latitude);
                     const longitude = Number(event?.nativeEvent?.coordinate?.longitude);
                     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
@@ -632,29 +661,51 @@ export function HomeMapSection(props: Props) {
                   }}
                 >
                   <View style={styles.mapPoopMarkerWrap}>
-                    <View
-                      style={[
-                        styles.mapPoopMarkerBubble,
-                        {
-                          backgroundColor: getPoopMarkerColor(Number(entry.bristolType)),
-                          borderColor: markerOutlineColor,
-                          shadowColor: markerShadowColor,
-                        },
-                        selectedMarkerEntryId === entry.id
-                          ? [styles.mapPoopMarkerBubbleSelected, { borderColor: selectedMarkerOutlineColor, shadowColor: selectedMarkerOutlineColor }]
-                          : null,
-                      ]}
-                    >
-                      <Text style={styles.mapPoopMarkerEmoji}>💩</Text>
-                    </View>
+                    {entry.userId === currentUserId ? (
+                      <View
+                        style={[
+                          styles.mapPoopMarkerBubble,
+                          {
+                            backgroundColor: markerColor,
+                            borderColor: markerOutlineColor,
+                            shadowColor: markerShadowColor,
+                          },
+                          isSelected
+                            ? [styles.mapPoopMarkerBubbleSelected, { borderColor: selectedMarkerOutlineColor, shadowColor: selectedMarkerOutlineColor }]
+                            : null,
+                        ]}
+                      >
+                        <Text style={styles.mapPoopMarkerEmoji}>💩</Text>
+                      </View>
+                    ) : (
+                      <View
+                        style={[
+                          styles.mapAvatarMarkerBubble,
+                          {
+                            backgroundColor: markerColor,
+                            borderColor: markerOutlineColor,
+                            shadowColor: markerShadowColor,
+                          },
+                          isSelected
+                            ? [styles.mapPoopMarkerBubbleSelected, { borderColor: selectedMarkerOutlineColor, shadowColor: selectedMarkerOutlineColor }]
+                            : null,
+                        ]}
+                      >
+                        {profile?.avatarUrl ? (
+                          <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} />
+                        ) : (
+                          <Ionicons name="person" size={17} color="#ffffff" />
+                        )}
+                      </View>
+                    )}
                     <View
                       style={[
                         styles.mapPoopMarkerTip,
                         {
-                          backgroundColor: getPoopMarkerColor(Number(entry.bristolType)),
+                          backgroundColor: markerColor,
                           borderColor: markerOutlineColor,
                         },
-                        selectedMarkerEntryId === entry.id
+                        isSelected
                           ? [styles.mapPoopMarkerTipSelected, { borderColor: selectedMarkerOutlineColor }]
                           : null,
                       ]}
@@ -686,14 +737,98 @@ export function HomeMapSection(props: Props) {
   );
 }
 
-function loadMapsLibrary(): { MapView: any; Marker: any; Circle: any } | null {
+function ClusterMapMarker(args: {
+  MarkerComponent: any;
+  clusterKey: string;
+  coordinate: { latitude: number; longitude: number };
+  representativeUser: Profile | null;
+  pointCount: number;
+  themeMode: ThemeMode;
+  onPress: () => void;
+}) {
+  const {
+    MarkerComponent,
+    clusterKey,
+    coordinate,
+    representativeUser,
+    pointCount,
+    themeMode,
+    onPress,
+  } = args;
+  const tracksViewChanges = useTracksViewChanges(Boolean(representativeUser));
+
+  return (
+    <MarkerComponent
+      key={clusterKey}
+      coordinate={coordinate}
+      anchor={{ x: 0.5, y: 0.5 }}
+      tracksViewChanges={tracksViewChanges}
+      onPress={onPress}
+      zIndex={9000}
+    >
+      <View style={styles.mapClusterMarkerWrap}>
+        <View
+          style={[
+            styles.mapClusterMarkerBubble,
+            representativeUser
+              ? { backgroundColor: representativeUser.avatarTint }
+              : { backgroundColor: themeMode === 'light' ? '#2d74da' : '#1f6feb' },
+          ]}
+        >
+          {representativeUser?.avatarUrl ? (
+            <Image source={{ uri: representativeUser.avatarUrl }} style={styles.avatarImage} />
+          ) : representativeUser ? (
+            <Ionicons name="person" size={24} color="#ffffff" />
+          ) : (
+            <Text style={styles.mapClusterMarkerCount}>{String(pointCount)}</Text>
+          )}
+        </View>
+        <View style={styles.mapClusterMarkerBadge}>
+          <Text style={styles.mapClusterMarkerBadgeText}>{String(pointCount)}</Text>
+        </View>
+      </View>
+    </MarkerComponent>
+  );
+}
+
+function useTracksViewChanges(trigger: unknown): boolean {
+  const [tracksViewChanges, setTracksViewChanges] = useState(true);
+
+  useEffect(() => {
+    setTracksViewChanges(true);
+    const timer = setTimeout(() => {
+      setTracksViewChanges(false);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [trigger]);
+
+  return tracksViewChanges;
+}
+
+function getClusterRepresentativeUser(args: {
+  leaves: any[];
+  currentUserId: string;
+  profilesById: Record<string, Profile>;
+}): Profile | null {
+  const { leaves, currentUserId, profilesById } = args;
+  if (!Array.isArray(leaves) || leaves.length === 0) return null;
+  const firstUserId = String(leaves[0]?.properties?.userId ?? '');
+  if (!firstUserId || firstUserId === currentUserId) return null;
+  for (const leaf of leaves) {
+    if (String(leaf?.properties?.userId ?? '') !== firstUserId) return null;
+  }
+  return profilesById[firstUserId] ?? null;
+}
+
+function loadMapsLibrary(): { ClusteredMapView: any; Marker: any; Circle: any } | null {
   try {
-    const mod = require('react-native-maps');
-    const mapView = mod?.default;
-    const marker = mod?.Marker;
-    const circle = mod?.Circle;
+    const clustered = require('react-native-map-clustering');
+    const maps = require('react-native-maps');
+    const mapView = clustered?.default ?? clustered;
+    const marker = maps?.Marker;
+    const circle = maps?.Circle;
     if (!mapView || !marker) return null;
-    return { MapView: mapView, Marker: marker, Circle: circle };
+    return { ClusteredMapView: mapView, Marker: marker, Circle: circle };
   } catch {
     return null;
   }
@@ -728,4 +863,46 @@ function getPoopMarkerColor(bristolType: number): string {
     default:
       return '#8c562c';
   }
+}
+
+function getClusterPressRegion(coordinates: Array<{ latitude: number; longitude: number }>): MapRegion {
+  if (coordinates.length === 0) {
+    return {
+      latitude: 43.6532,
+      longitude: -79.3832,
+      latitudeDelta: 0.25,
+      longitudeDelta: 0.25,
+    };
+  }
+
+  if (coordinates.length === 1) {
+    return {
+      latitude: coordinates[0].latitude,
+      longitude: coordinates[0].longitude,
+      latitudeDelta: 0.012,
+      longitudeDelta: 0.012,
+    };
+  }
+
+  let minLatitude = coordinates[0].latitude;
+  let maxLatitude = coordinates[0].latitude;
+  let minLongitude = coordinates[0].longitude;
+  let maxLongitude = coordinates[0].longitude;
+
+  for (const coordinate of coordinates) {
+    minLatitude = Math.min(minLatitude, coordinate.latitude);
+    maxLatitude = Math.max(maxLatitude, coordinate.latitude);
+    minLongitude = Math.min(minLongitude, coordinate.longitude);
+    maxLongitude = Math.max(maxLongitude, coordinate.longitude);
+  }
+
+  const latitudeSpan = Math.max(0.01, (maxLatitude - minLatitude) * 1.6);
+  const longitudeSpan = Math.max(0.01, (maxLongitude - minLongitude) * 1.6);
+
+  return {
+    latitude: (minLatitude + maxLatitude) / 2,
+    longitude: (minLongitude + maxLongitude) / 2,
+    latitudeDelta: latitudeSpan,
+    longitudeDelta: longitudeSpan,
+  };
 }
