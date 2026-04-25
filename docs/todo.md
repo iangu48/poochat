@@ -2,14 +2,12 @@
 
 ## Features
 - [ ] Merge same-day, same-location entries into one marker with count badge and timestamp list.
-- [ ] Marker tap flow: open entry detail/comment drawer directly from map marker.
 - [ ] Add entry-detail state for grouped markers (multi-entry location drill-down).
 - [ ] Add optional location privacy controls (exact vs rounded coordinates).
 - [ ] Expand friend management (remove/block, sent-request states, mutuals).
 - [ ] Add trigger journal tags per entry (food, stress, sleep, travel, meds) with trend correlations.
 - [ ] Add privacy zones (home/work/custom geofences) to auto-obfuscate precise coordinates.
 - [ ] Add travel mode (timezone/city change detection + routine disruption/recovery insights).
-- [ ] Add friend reactions to entries/comments (supportive, low-friction social feedback).
 - [ ] Add monthly digestive persona summaries with personalized guidance.
 - [ ] Add optional photo attachments to entries (private by default with clear retention controls; blocked pending legal/privacy/safety and moderation evaluation).
 - [ ] Add clinician export (PDF/CSV summary of ratings, Bristol trends, notes, and outlier periods).

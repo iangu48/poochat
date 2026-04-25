@@ -9,6 +9,7 @@ import { styles } from '../../styles';
 import { BristolTypeChip, BristolVisual, RatingVisual } from './EntryVisuals';
 import { formatDateTimeButtonLabel } from '../utils';
 import { getThemePalette, type ThemeMode } from '../../../theme';
+import type { TriggerTag } from '../../../types/domain';
 import { POOP_VOLUME_OPTIONS } from '../../../types/domain';
 
 type Props = {
@@ -20,6 +21,8 @@ type Props = {
   rating: string;
   volume: string;
   note: string;
+  availableTriggerTags: TriggerTag[];
+  selectedTriggerTagIds: string[];
   showDateEditor: boolean;
   pickerStep: 'none' | 'date' | 'time';
   pickerMaxDate?: Date;
@@ -34,6 +37,7 @@ type Props = {
   onRatingChange: (value: string) => void;
   onVolumeChange: (value: string) => void;
   onNoteChange: (value: string) => void;
+  onSelectedTriggerTagIdsChange: (value: string[]) => void;
   onNoteFocus: () => void;
   onDateStepActionsLayout: (event: any) => void;
   onEntryActionsRowLayout: (event: any) => void;
@@ -44,7 +48,7 @@ type Props = {
   bottomOffset?: number;
 };
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 export function EntryComposerModal(props: Props) {
   const {
@@ -56,6 +60,8 @@ export function EntryComposerModal(props: Props) {
     rating,
     volume,
     note,
+    availableTriggerTags,
+    selectedTriggerTagIds,
     pickerMaxDate,
     draftDateTime,
     onSetDraftDateTime,
@@ -66,6 +72,7 @@ export function EntryComposerModal(props: Props) {
     onRatingChange,
     onVolumeChange,
     onNoteChange,
+    onSelectedTriggerTagIdsChange,
     onAddEntry,
     onClose,
     closeOnOutsideTap = false,
@@ -163,17 +170,19 @@ export function EntryComposerModal(props: Props) {
   }
 
   function handleNextOrSave(): void {
-    if (stepIndex === 3) {
+    if (stepIndex === 4) {
       onSaveDateTime();
-      goToStep(4);
+      goToStep(5);
       return;
     }
-    if (stepIndex === 4) {
+    if (stepIndex === 5) {
       onAddEntry();
       return;
     }
     goToStep(stepIndex + 1);
   }
+
+  const triggerTagsByCategory = groupTriggerTagsByCategory(availableTriggerTags);
 
   if (!mounted) return null;
 
@@ -329,6 +338,46 @@ export function EntryComposerModal(props: Props) {
               </View>
 
               <View key="step-3" style={styles.entryStepPane}>
+                <Text style={[styles.label, { color: colors.text }]}>Possible Triggers</Text>
+                <Text style={[styles.muted, { color: colors.mutedText }]}>Optional, and you can pick more than one.</Text>
+                <View style={styles.triggerTagCategoryList}>
+                  {triggerTagsByCategory.map(([category, tags]) => (
+                    <View key={`trigger-category-${category}`} style={styles.triggerTagCategorySection}>
+                      <Text style={[styles.triggerTagCategoryTitle, { color: colors.mutedText }]}>{category}</Text>
+                      <View style={styles.triggerTagChipGrid}>
+                        {tags.map((tag) => {
+                          const isSelected = selectedTriggerTagIds.includes(tag.id);
+                          return (
+                            <TouchableOpacity
+                              key={tag.id}
+                              style={[
+                                styles.triggerTagChipButton,
+                                {
+                                  backgroundColor: isSelected ? colors.primary : colors.surfaceAlt,
+                                  borderColor: isSelected ? colors.primaryBorder : colors.border,
+                                },
+                              ]}
+                              onPress={() => {
+                                const next = isSelected
+                                  ? selectedTriggerTagIds.filter((id) => id !== tag.id)
+                                  : [...selectedTriggerTagIds, tag.id];
+                                onSelectedTriggerTagIdsChange(next);
+                              }}
+                              accessibilityLabel={`${isSelected ? 'Remove' : 'Add'} trigger ${tag.label}`}
+                            >
+                              <Text style={[styles.triggerTagChipButtonText, { color: isSelected ? '#ffffff' : colors.text }]}>
+                                {tag.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              <View key="step-4" style={styles.entryStepPane}>
                 <Text style={[styles.label, { color: colors.text }]}>Date & Time</Text>
                 <Text style={[styles.muted, { color: colors.mutedText }]}>{formatDateTimeButtonLabel(effectiveDateTime)}</Text>
                 <View style={styles.entryDateToggleRow}>
@@ -446,7 +495,7 @@ export function EntryComposerModal(props: Props) {
                 </View>
               </View>
 
-              <View key="step-4" style={styles.entryStepPane}>
+              <View key="step-5" style={styles.entryStepPane}>
                 <Text style={[styles.label, { color: colors.text }]}>Note (optional)</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
@@ -505,4 +554,15 @@ export function EntryComposerModal(props: Props) {
       </KeyboardAvoidingView>
     </View>
   );
+}
+
+function groupTriggerTagsByCategory(tags: TriggerTag[]): Array<[string, TriggerTag[]]> {
+  const grouped = new Map<string, TriggerTag[]>();
+  for (const tag of tags) {
+    const category = tag.category?.trim() || 'Other';
+    const current = grouped.get(category) ?? [];
+    current.push(tag);
+    grouped.set(category, current);
+  }
+  return Array.from(grouped.entries());
 }

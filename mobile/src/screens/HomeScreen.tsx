@@ -23,6 +23,7 @@ import type {
   IncomingFriendRequest,
   PoopEntry,
   Profile,
+  TriggerTag,
 } from '../types/domain';
 import { FEED_REACTION_OPTIONS } from '../types/domain';
 import { styles } from './styles';
@@ -56,6 +57,8 @@ type Props = {
   rating: string;
   volume: string;
   note: string;
+  availableTriggerTags: TriggerTag[];
+  selectedTriggerTagIds: string[];
   entryDate: string;
   entryTime: string;
   friendUsername: string;
@@ -71,6 +74,7 @@ type Props = {
   onRatingChange: (value: string) => void;
   onVolumeChange: (value: string) => void;
   onNoteChange: (value: string) => void;
+  onSelectedTriggerTagIdsChange: (value: string[]) => void;
   onEntryDateChange: (value: string) => void;
   onEntryTimeChange: (value: string) => void;
   onAddEntry: () => void;
@@ -110,6 +114,8 @@ export function HomeScreen(props: Props) {
     rating,
     volume,
     note,
+    availableTriggerTags,
+    selectedTriggerTagIds,
     entryDate,
     entryTime,
     friendUsername,
@@ -125,6 +131,7 @@ export function HomeScreen(props: Props) {
     onRatingChange,
     onVolumeChange,
     onNoteChange,
+    onSelectedTriggerTagIdsChange,
     onEntryDateChange,
     onEntryTimeChange,
     onAddEntry,
@@ -170,6 +177,7 @@ export function HomeScreen(props: Props) {
       latitude: item.latitude,
       longitude: item.longitude,
       locationSource: 'manual',
+      triggerTags: [],
     })),
     [todayFeedItems],
   );
@@ -616,6 +624,8 @@ export function HomeScreen(props: Props) {
         rating={rating}
         volume={volume}
         note={note}
+        availableTriggerTags={availableTriggerTags}
+        selectedTriggerTagIds={selectedTriggerTagIds}
         showDateEditor={showDateEditor}
         pickerStep={pickerStep}
         pickerMaxDate={pickerMaxDate}
@@ -643,6 +653,7 @@ export function HomeScreen(props: Props) {
         onRatingChange={onRatingChange}
         onVolumeChange={onVolumeChange}
         onNoteChange={onNoteChange}
+        onSelectedTriggerTagIdsChange={onSelectedTriggerTagIdsChange}
         onNoteFocus={() => {}}
         onDateStepActionsLayout={() => {}}
         onEntryActionsRowLayout={() => {}}

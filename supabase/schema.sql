@@ -33,6 +33,26 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.trigger_tags (
+  id uuid primary key default gen_random_uuid(),
+  key text,
+  label text not null,
+  normalized_label text not null,
+  category text not null,
+  is_system boolean not null default false,
+  created_by uuid references public.profiles(id) on delete set null,
+  canonical_tag_id uuid references public.trigger_tags(id) on delete set null,
+  active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  check (char_length(label) between 1 and 40),
+  check (char_length(normalized_label) between 1 and 40),
+  check (
+    (is_system = true and created_by is null)
+    or (is_system = false and created_by is not null)
+  )
+);
+
 create table if not exists public.poop_entries (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -48,6 +68,13 @@ create table if not exists public.poop_entries (
   updated_at timestamptz not null default now(),
   check (note is null or char_length(note) <= 280),
   check ((latitude is null and longitude is null) or (latitude is not null and longitude is not null))
+);
+
+create table if not exists public.poop_entry_trigger_tags (
+  entry_id uuid not null references public.poop_entries(id) on delete cascade,
+  trigger_tag_id uuid not null references public.trigger_tags(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (entry_id, trigger_tag_id)
 );
 
 create table if not exists public.friend_feed_comments (
@@ -114,6 +141,14 @@ create table if not exists public.friendships (
 -- One canonical row per pair (lower UUID first) to avoid duplicates.
 create unique index if not exists friendships_pair_unique_idx
   on public.friendships (least(requester_id, addressee_id), greatest(requester_id, addressee_id));
+
+create unique index if not exists trigger_tags_system_key_unique_idx
+  on public.trigger_tags(key)
+  where key is not null;
+
+create unique index if not exists trigger_tags_user_label_unique_idx
+  on public.trigger_tags(created_by, normalized_label)
+  where created_by is not null;
 
 create table if not exists public.chat_rooms (
   id uuid primary key default gen_random_uuid(),
@@ -198,6 +233,19 @@ create index if not exists friendships_addressee_status_idx
 
 create index if not exists poop_entries_visibility_idx
   on public.poop_entries(visibility);
+
+create index if not exists trigger_tags_category_sort_idx
+  on public.trigger_tags(category, sort_order, label);
+
+create index if not exists trigger_tags_canonical_idx
+  on public.trigger_tags(canonical_tag_id)
+  where canonical_tag_id is not null;
+
+create index if not exists poop_entry_trigger_tags_entry_idx
+  on public.poop_entry_trigger_tags(entry_id);
+
+create index if not exists poop_entry_trigger_tags_tag_idx
+  on public.poop_entry_trigger_tags(trigger_tag_id);
 
 create index if not exists friend_feed_comments_entry_created_idx
   on public.friend_feed_comments(entry_id, created_at desc);
@@ -362,7 +410,9 @@ from scoped_entries
 group by viewer_id, subject_id, username, display_name, year;
 
 alter table public.profiles enable row level security;
+alter table public.trigger_tags enable row level security;
 alter table public.poop_entries enable row level security;
+alter table public.poop_entry_trigger_tags enable row level security;
 alter table public.friendships enable row level security;
 alter table public.chat_rooms enable row level security;
 alter table public.chat_room_members enable row level security;
@@ -396,6 +446,25 @@ create policy profiles_update_self
   to authenticated
   using (auth.uid() = id)
   with check (auth.uid() = id);
+
+create policy trigger_tags_select_system_or_own
+  on public.trigger_tags
+  for select
+  to authenticated
+  using (is_system = true or created_by = auth.uid());
+
+create policy trigger_tags_insert_own_custom
+  on public.trigger_tags
+  for insert
+  to authenticated
+  with check (is_system = false and created_by = auth.uid());
+
+create policy trigger_tags_update_own_custom
+  on public.trigger_tags
+  for update
+  to authenticated
+  using (is_system = false and created_by = auth.uid())
+  with check (is_system = false and created_by = auth.uid());
 
 create policy storage_avatars_insert_own
   on storage.objects
@@ -486,6 +555,76 @@ create policy poop_entries_delete_own
   for delete
   to authenticated
   using (auth.uid() = user_id);
+
+create policy poop_entry_trigger_tags_select_visible
+  on public.poop_entry_trigger_tags
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.poop_entries e
+      where e.id = public.poop_entry_trigger_tags.entry_id
+        and (
+          e.user_id = auth.uid()
+          or (
+            exists (
+              select 1
+              from public.profiles p
+              where p.id = e.user_id
+                and p.share_feed = true
+            )
+            and exists (
+              select 1
+              from public.accepted_friend_edges af
+              where af.user_id = auth.uid()
+                and af.friend_id = e.user_id
+            )
+            and not exists (
+              select 1
+              from public.friendships f
+              where f.status = 'blocked'
+                and (
+                  (f.requester_id = auth.uid() and f.addressee_id = e.user_id)
+                  or (f.requester_id = e.user_id and f.addressee_id = auth.uid())
+                )
+            )
+          )
+        )
+    )
+  );
+
+create policy poop_entry_trigger_tags_insert_own
+  on public.poop_entry_trigger_tags
+  for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.poop_entries e
+      where e.id = public.poop_entry_trigger_tags.entry_id
+        and e.user_id = auth.uid()
+    )
+    and exists (
+      select 1
+      from public.trigger_tags t
+      where t.id = public.poop_entry_trigger_tags.trigger_tag_id
+        and (t.is_system = true or t.created_by = auth.uid())
+    )
+  );
+
+create policy poop_entry_trigger_tags_delete_own
+  on public.poop_entry_trigger_tags
+  for delete
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.poop_entries e
+      where e.id = public.poop_entry_trigger_tags.entry_id
+        and e.user_id = auth.uid()
+    )
+  );
 
 -- Feed comments: visible/commentable when the underlying entry is visible in friend feed.
 create policy friend_feed_comments_select_visible
@@ -809,6 +948,20 @@ begin
   end if;
 end
 $$;
+
+insert into public.trigger_tags (key, label, normalized_label, category, is_system, sort_order)
+values
+  ('coffee', 'Coffee', 'coffee', 'Food & Drink', true, 10),
+  ('dairy', 'Dairy', 'dairy', 'Food & Drink', true, 20),
+  ('spicy_food', 'Spicy Food', 'spicy food', 'Food & Drink', true, 30),
+  ('alcohol', 'Alcohol', 'alcohol', 'Food & Drink', true, 40),
+  ('stress', 'Stress', 'stress', 'Lifestyle', true, 50),
+  ('poor_sleep', 'Poor Sleep', 'poor sleep', 'Lifestyle', true, 60),
+  ('travel', 'Travel', 'travel', 'Lifestyle', true, 70),
+  ('exercise', 'Exercise', 'exercise', 'Lifestyle', true, 80),
+  ('medication', 'Medication', 'medication', 'Health', true, 90),
+  ('illness', 'Illness', 'illness', 'Health', true, 100)
+on conflict (key) do nothing;
 
 -- Realtime: stream invite updates to subscribed clients.
 do $$

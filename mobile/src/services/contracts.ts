@@ -10,6 +10,7 @@ import type {
   LeaderboardRow,
   PoopEntry,
   Profile,
+  TriggerTag,
   UUID,
 } from '../types/domain';
 
@@ -22,6 +23,7 @@ export type NewPoopEntryInput = {
   latitude?: number;
   longitude?: number;
   locationSource?: 'gps' | 'manual';
+  triggerTagIds?: UUID[];
 };
 
 export interface PoopService {
@@ -29,10 +31,14 @@ export interface PoopService {
   createMine(input: NewPoopEntryInput, userId?: UUID): Promise<PoopEntry>;
   updateMine(
     entryId: UUID,
-    input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'volume' | 'note' | 'latitude' | 'longitude' | 'locationSource'>>,
+    input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'volume' | 'note' | 'latitude' | 'longitude' | 'locationSource' | 'triggerTagIds'>>,
     userId?: UUID
   ): Promise<PoopEntry>;
   deleteMine(entryId: UUID, userId?: UUID): Promise<void>;
+}
+
+export interface TriggerTagService {
+  listAvailable(userId?: UUID): Promise<TriggerTag[]>;
 }
 
 export interface FriendsService {

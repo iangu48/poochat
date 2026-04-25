@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, RefreshControl, ScrollView, StatusBar, Text, View } from 'react-native';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import type { PoopEntry } from '../types/domain';
+import type { PoopEntry, TriggerTag } from '../types/domain';
 import { styles } from './styles';
 import { getThemePalette, type ThemeMode } from '../theme';
 import { MonthOverviewSection } from './home/components/MonthOverviewSection';
@@ -31,6 +31,8 @@ type Props = {
   rating: string;
   volume: string;
   note: string;
+  availableTriggerTags: TriggerTag[];
+  selectedTriggerTagIds: string[];
   entryDate: string;
   entryTime: string;
   onDeleteEntry: (entryId: string) => void;
@@ -39,6 +41,7 @@ type Props = {
   onRatingChange: (value: string) => void;
   onVolumeChange: (value: string) => void;
   onNoteChange: (value: string) => void;
+  onSelectedTriggerTagIdsChange: (value: string[]) => void;
   onEntryDateChange: (value: string) => void;
   onEntryTimeChange: (value: string) => void;
   onAddEntry: () => void;
@@ -60,6 +63,8 @@ export function OverviewScreen(props: Props) {
     rating,
     volume,
     note,
+    availableTriggerTags,
+    selectedTriggerTagIds,
     entryDate,
     entryTime,
     onDeleteEntry,
@@ -68,6 +73,7 @@ export function OverviewScreen(props: Props) {
     onRatingChange,
     onVolumeChange,
     onNoteChange,
+    onSelectedTriggerTagIdsChange,
     onEntryDateChange,
     onEntryTimeChange,
     onAddEntry,
@@ -252,6 +258,8 @@ export function OverviewScreen(props: Props) {
         rating={rating}
         volume={volume}
         note={note}
+        availableTriggerTags={availableTriggerTags}
+        selectedTriggerTagIds={selectedTriggerTagIds}
         showDateEditor={showDateEditor}
         pickerStep={pickerStep}
         pickerMaxDate={pickerMaxDate}
@@ -279,6 +287,7 @@ export function OverviewScreen(props: Props) {
         onRatingChange={onRatingChange}
         onVolumeChange={onVolumeChange}
         onNoteChange={onNoteChange}
+        onSelectedTriggerTagIdsChange={onSelectedTriggerTagIdsChange}
         onNoteFocus={() => {}}
         onDateStepActionsLayout={() => {}}
         onEntryActionsRowLayout={() => {}}

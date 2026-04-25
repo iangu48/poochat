@@ -7,7 +7,12 @@ import { getThemePalette, type ThemeMode } from '../../../theme';
 import { getEntryLocations, getInitialRegion, type MapRegion } from '../mapUtils';
 
 const MapsLib = loadMapsLibrary();
-const MapViewComponent = MapsLib?.ClusteredMapView ?? null;
+const CLUSTERING_ENABLED = Platform.OS !== 'ios' && Boolean(MapsLib?.ClusteredMapView);
+const MapViewComponent = (
+  CLUSTERING_ENABLED
+    ? MapsLib?.ClusteredMapView
+    : MapsLib?.MapView
+) ?? null;
 const MarkerComponent = MapsLib?.Marker ?? null;
 const CircleComponent = MapsLib?.Circle ?? null;
 const CROSSHAIR_DEFAULT_X_RATIO = 0.5;
@@ -74,15 +79,18 @@ export function HomeMapSection(props: Props) {
   const [crosshairCenterInWindow, setCrosshairCenterInWindow] = useState<{ x: number; y: number } | null>(null);
   const [projectionBias, setProjectionBias] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
   const [mapIsMoving, setMapIsMoving] = useState(false);
+  const [markerIdsTrackingViewChanges, setMarkerIdsTrackingViewChanges] = useState<Record<string, true>>({});
   const mapRef = useRef<any>(null);
   const superClusterRef = useRef<any>(null);
   const crosshairRef = useRef<View | null>(null);
   const suppressNextMapPressClearRef = useRef(false);
   const composerDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const motionSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markerViewChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapIsMovingRef = useRef(false);
   const hasInitialRegionSettledRef = useRef(false);
   const programmaticMoveRef = useRef(false);
+  const previousSelectedMarkerEntryIdRef = useRef<string | null>(null);
   const entryById = useMemo(() => {
     const next = new Map<string, PoopEntry>();
     for (const entry of entries) next.set(entry.id, entry);
@@ -339,6 +347,9 @@ export function HomeMapSection(props: Props) {
       if (motionSettleTimerRef.current) {
         clearTimeout(motionSettleTimerRef.current);
       }
+      if (markerViewChangeTimerRef.current) {
+        clearTimeout(markerViewChangeTimerRef.current);
+      }
     };
   }, []);
 
@@ -361,6 +372,33 @@ export function HomeMapSection(props: Props) {
     if (entryById.has(selectedMarkerEntryId)) return;
     setSelectedMarkerEntryId(null);
   }, [entryById, selectedMarkerEntryId]);
+
+  useEffect(() => {
+    const idsToRefresh = [previousSelectedMarkerEntryIdRef.current, selectedMarkerEntryId]
+      .filter((value): value is string => Boolean(value));
+    previousSelectedMarkerEntryIdRef.current = selectedMarkerEntryId;
+    if (idsToRefresh.length === 0) return;
+
+    setMarkerIdsTrackingViewChanges((prev) => {
+      const next = { ...prev };
+      for (const id of idsToRefresh) next[id] = true;
+      return next;
+    });
+
+    if (markerViewChangeTimerRef.current) {
+      clearTimeout(markerViewChangeTimerRef.current);
+    }
+    markerViewChangeTimerRef.current = setTimeout(() => {
+      setMarkerIdsTrackingViewChanges((prev) => {
+        const next = { ...prev };
+        for (const id of idsToRefresh) {
+          delete next[id];
+        }
+        return next;
+      });
+      markerViewChangeTimerRef.current = null;
+    }, 250);
+  }, [selectedMarkerEntryId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -500,59 +538,29 @@ export function HomeMapSection(props: Props) {
             style={[styles.homeMap, fullScreen ? styles.homeMapFull : null]}
             initialRegion={initialRegionRef.current}
             userInterfaceStyle={themeMode}
-            clusterColor={themeMode === 'light' ? '#2d74da' : '#1f6feb'}
-            clusterTextColor="#ffffff"
-            radius={44}
-            animationEnabled={Platform.OS === 'ios'}
-            tracksViewChanges={false}
-            preserveClusterPressBehavior
-            superClusterRef={superClusterRef}
-            renderCluster={(cluster: any) => {
-              const pointCount = Number(cluster?.properties?.point_count ?? 0);
-              const clusterId = Number(cluster?.properties?.cluster_id);
-              const leaves = (
-                Number.isFinite(clusterId)
-                && superClusterRef.current
-                && typeof superClusterRef.current.getLeaves === 'function'
-              )
-                ? superClusterRef.current.getLeaves(clusterId, Infinity)
-                : [];
-              const representativeUser = getClusterRepresentativeUser({
-                leaves,
-                currentUserId,
-                profilesById,
-              });
-              const coordinate = {
-                latitude: Number(cluster?.geometry?.coordinates?.[1] ?? 0),
-                longitude: Number(cluster?.geometry?.coordinates?.[0] ?? 0),
-              };
-              return (
-                <ClusterMapMarker
-                  key={`cluster-${String(cluster?.id ?? clusterId)}`}
-                  MarkerComponent={MarkerComponent}
-                  clusterKey={`cluster-${String(cluster?.id ?? clusterId)}`}
-                  coordinate={coordinate}
-                  representativeUser={representativeUser}
-                  pointCount={pointCount}
-                  themeMode={themeMode}
-                  onPress={cluster.onPress}
-                />
-              );
-            }}
-            onClusterPress={(_cluster: any, markers?: any[]) => {
-              const coordinates = (markers ?? [])
-                .map((marker) => {
-                  const longitude = Number(marker?.geometry?.coordinates?.[0]);
-                  const latitude = Number(marker?.geometry?.coordinates?.[1]);
-                  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-                  return { latitude, longitude };
-                })
-                .filter((item): item is { latitude: number; longitude: number } => item != null);
-              if (coordinates.length === 0) return;
-              const nextRegion = getClusterPressRegion(coordinates);
-              mapRef.current?.animateToRegion?.(nextRegion, 280);
-              setRegion(nextRegion);
-            }}
+            {...(CLUSTERING_ENABLED ? {
+              clusterColor: themeMode === 'light' ? '#2d74da' : '#1f6feb',
+              clusterTextColor: '#ffffff',
+              radius: 44,
+              animationEnabled: false,
+              tracksViewChanges: false,
+              preserveClusterPressBehavior: true,
+              superClusterRef,
+              onClusterPress: (_cluster: any, markers?: any[]) => {
+                const coordinates = (markers ?? [])
+                  .map((marker) => {
+                    const longitude = Number(marker?.geometry?.coordinates?.[0]);
+                    const latitude = Number(marker?.geometry?.coordinates?.[1]);
+                    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+                    return { latitude, longitude };
+                  })
+                  .filter((item): item is { latitude: number; longitude: number } => item != null);
+                if (coordinates.length === 0) return;
+                const nextRegion = getClusterPressRegion(coordinates);
+                mapRef.current?.animateToRegion?.(nextRegion, 280);
+                setRegion(nextRegion);
+              },
+            } : {})}
             onLayout={(event: any) => {
               const width = Number(event?.nativeEvent?.layout?.width);
               const height = Number(event?.nativeEvent?.layout?.height);
@@ -627,7 +635,7 @@ export function HomeMapSection(props: Props) {
               if (!entry) return null;
               const isSelected = selectedMarkerEntryId === entry.id;
               const canDragEntry = entry.userId === currentUserId;
-              const tracksViewChanges = useTracksViewChanges(isSelected);
+              const tracksViewChanges = Boolean(markerIdsTrackingViewChanges[entry.id]);
               const profile = profilesById[entry.userId];
               const markerColor = entry.userId === currentUserId
                 ? getPoopMarkerColor(Number(entry.bristolType))
@@ -737,98 +745,16 @@ export function HomeMapSection(props: Props) {
   );
 }
 
-function ClusterMapMarker(args: {
-  MarkerComponent: any;
-  clusterKey: string;
-  coordinate: { latitude: number; longitude: number };
-  representativeUser: Profile | null;
-  pointCount: number;
-  themeMode: ThemeMode;
-  onPress: () => void;
-}) {
-  const {
-    MarkerComponent,
-    clusterKey,
-    coordinate,
-    representativeUser,
-    pointCount,
-    themeMode,
-    onPress,
-  } = args;
-  const tracksViewChanges = useTracksViewChanges(Boolean(representativeUser));
-
-  return (
-    <MarkerComponent
-      key={clusterKey}
-      coordinate={coordinate}
-      anchor={{ x: 0.5, y: 0.5 }}
-      tracksViewChanges={tracksViewChanges}
-      onPress={onPress}
-      zIndex={9000}
-    >
-      <View style={styles.mapClusterMarkerWrap}>
-        <View
-          style={[
-            styles.mapClusterMarkerBubble,
-            representativeUser
-              ? { backgroundColor: representativeUser.avatarTint }
-              : { backgroundColor: themeMode === 'light' ? '#2d74da' : '#1f6feb' },
-          ]}
-        >
-          {representativeUser?.avatarUrl ? (
-            <Image source={{ uri: representativeUser.avatarUrl }} style={styles.avatarImage} />
-          ) : representativeUser ? (
-            <Ionicons name="person" size={24} color="#ffffff" />
-          ) : (
-            <Text style={styles.mapClusterMarkerCount}>{String(pointCount)}</Text>
-          )}
-        </View>
-        <View style={styles.mapClusterMarkerBadge}>
-          <Text style={styles.mapClusterMarkerBadgeText}>{String(pointCount)}</Text>
-        </View>
-      </View>
-    </MarkerComponent>
-  );
-}
-
-function useTracksViewChanges(trigger: unknown): boolean {
-  const [tracksViewChanges, setTracksViewChanges] = useState(true);
-
-  useEffect(() => {
-    setTracksViewChanges(true);
-    const timer = setTimeout(() => {
-      setTracksViewChanges(false);
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [trigger]);
-
-  return tracksViewChanges;
-}
-
-function getClusterRepresentativeUser(args: {
-  leaves: any[];
-  currentUserId: string;
-  profilesById: Record<string, Profile>;
-}): Profile | null {
-  const { leaves, currentUserId, profilesById } = args;
-  if (!Array.isArray(leaves) || leaves.length === 0) return null;
-  const firstUserId = String(leaves[0]?.properties?.userId ?? '');
-  if (!firstUserId || firstUserId === currentUserId) return null;
-  for (const leaf of leaves) {
-    if (String(leaf?.properties?.userId ?? '') !== firstUserId) return null;
-  }
-  return profilesById[firstUserId] ?? null;
-}
-
-function loadMapsLibrary(): { ClusteredMapView: any; Marker: any; Circle: any } | null {
+function loadMapsLibrary(): { MapView: any; ClusteredMapView: any; Marker: any; Circle: any } | null {
   try {
     const clustered = require('react-native-map-clustering');
     const maps = require('react-native-maps');
-    const mapView = clustered?.default ?? clustered;
+    const clusteredMapView = clustered?.default ?? clustered;
+    const mapView = maps?.default ?? maps;
     const marker = maps?.Marker;
     const circle = maps?.Circle;
     if (!mapView || !marker) return null;
-    return { ClusteredMapView: mapView, Marker: marker, Circle: circle };
+    return { MapView: mapView, ClusteredMapView: clusteredMapView, Marker: marker, Circle: circle };
   } catch {
     return null;
   }

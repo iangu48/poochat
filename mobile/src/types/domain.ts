@@ -9,6 +9,19 @@ export type Profile = {
   avatarTint: string;
 };
 
+export type TriggerTag = {
+  id: UUID;
+  key: string | null;
+  label: string;
+  normalizedLabel: string;
+  category: string;
+  isSystem: boolean;
+  createdBy: UUID | null;
+  canonicalTagId: UUID | null;
+  active: boolean;
+  sortOrder: number;
+};
+
 export type PoopEntry = {
   id: UUID;
   userId: UUID;
@@ -20,6 +33,7 @@ export type PoopEntry = {
   latitude: number | null;
   longitude: number | null;
   locationSource: 'gps' | 'manual' | null;
+  triggerTags: TriggerTag[];
 };
 
 export type LeaderboardRow = {

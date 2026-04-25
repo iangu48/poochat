@@ -4,6 +4,7 @@ import type { PoopEntry } from '../../../types/domain';
 import { styles } from '../../styles';
 import { getThemePalette, type ThemeMode } from '../../../theme';
 import { BristolTypeChip } from './EntryVisuals';
+import { TriggerTagList } from './TriggerTagList';
 import { formatEntryTimestamp, getRatingCardStyle, getRatingColor, getRatingEmoji, getRatingEmotion, getVolumeEmoji, getVolumeShortLabel } from '../utils';
 
 type Props = {
@@ -58,6 +59,7 @@ export function RecentEntriesSection(props: Props) {
               {getVolumeEmoji(Number(entry.volume))} {getVolumeShortLabel(Number(entry.volume))}
             </Text>
             <Text style={[styles.entrySquareTime, { color: colors.mutedText }]}>{formatEntryTimestamp(entry.occurredAt)}</Text>
+            <TriggerTagList themeMode={themeMode} tags={entry.triggerTags} maxVisible={3} />
             <Text style={[styles.entrySquareNote, { color: colors.mutedText }]} numberOfLines={3}>
               {entry.note?.trim() || 'No note'}
             </Text>

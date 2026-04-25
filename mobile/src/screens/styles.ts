@@ -1719,6 +1719,53 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
   },
+  triggerTagCategoryList: {
+    gap: 14,
+    marginTop: 12,
+  },
+  triggerTagCategorySection: {
+    gap: 8,
+  },
+  triggerTagCategoryTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  triggerTagChipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  triggerTagChipButton: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+  },
+  triggerTagChipButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  entryTriggerTagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+    width: '100%',
+    marginBottom: 6,
+  },
+  entryTriggerTagChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    maxWidth: '100%',
+  },
+  entryTriggerTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   entrySquareNote: {
     color: '#c9d1d9',
     fontSize: 10,

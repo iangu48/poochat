@@ -12,6 +12,7 @@ import type {
   LeaderboardRow,
   PoopEntry,
   Profile,
+  TriggerTag,
   UUID,
 } from '../types/domain';
 import type {
@@ -22,6 +23,7 @@ import type {
   NewPoopEntryInput,
   PoopService,
   ProfileService,
+  TriggerTagService,
   UpsertProfileInput,
 } from './contracts';
 
@@ -45,6 +47,24 @@ type PoopRow = {
   latitude: number | null;
   longitude: number | null;
   location_source: 'gps' | 'manual' | null;
+  poop_entry_trigger_tags?:
+    | Array<{
+        trigger_tags: TriggerTagRow | TriggerTagRow[] | null;
+      }>
+    | null;
+};
+
+type TriggerTagRow = {
+  id: string;
+  key: string | null;
+  label: string;
+  normalized_label: string;
+  category: string;
+  is_system: boolean;
+  created_by: string | null;
+  canonical_tag_id: string | null;
+  active: boolean;
+  sort_order: number;
 };
 
 type MessageRow = {
@@ -176,7 +196,36 @@ function asPoopEntry(row: PoopRow): PoopEntry {
     latitude: row.latitude == null ? null : Number(row.latitude),
     longitude: row.longitude == null ? null : Number(row.longitude),
     locationSource: row.location_source ?? null,
+    triggerTags: asTriggerTagsFromJoinRows(row.poop_entry_trigger_tags),
   };
+}
+
+function asTriggerTag(row: TriggerTagRow): TriggerTag {
+  return {
+    id: row.id,
+    key: row.key ?? null,
+    label: row.label,
+    normalizedLabel: row.normalized_label,
+    category: row.category,
+    isSystem: Boolean(row.is_system),
+    createdBy: row.created_by ?? null,
+    canonicalTagId: row.canonical_tag_id ?? null,
+    active: Boolean(row.active),
+    sortOrder: Number(row.sort_order ?? 0),
+  };
+}
+
+function asTriggerTagsFromJoinRows(
+  rows: Array<{ trigger_tags: TriggerTagRow | TriggerTagRow[] | null }> | null | undefined,
+): TriggerTag[] {
+  if (!Array.isArray(rows)) return [];
+  const tags: TriggerTag[] = [];
+  for (const row of rows) {
+    const tag = Array.isArray(row.trigger_tags) ? row.trigger_tags[0] : row.trigger_tags;
+    if (!tag) continue;
+    tags.push(asTriggerTag(tag));
+  }
+  return tags;
 }
 
 function asChatMessage(row: MessageRow): ChatMessage {
@@ -257,6 +306,53 @@ function asChatRoomInvite(row: ChatRoomInviteRow): ChatRoomInvite {
     approvedAt: row.approved_at,
     resolvedAt: row.resolved_at,
   };
+}
+
+const POOP_ENTRY_SELECT = [
+  'id',
+  'user_id',
+  'occurred_at',
+  'bristol_type',
+  'rating',
+  'volume',
+  'note',
+  'latitude',
+  'longitude',
+  'location_source',
+  'poop_entry_trigger_tags(trigger_tags(id,key,label,normalized_label,category,is_system,created_by,canonical_tag_id,active,sort_order))',
+].join(',');
+
+async function getPoopEntryById(client: SupabaseClient, entryId: UUID, userId: UUID): Promise<PoopEntry> {
+  const { data, error } = await client
+    .from('poop_entries')
+    .select(POOP_ENTRY_SELECT)
+    .eq('id', entryId)
+    .eq('user_id', userId)
+    .single();
+  if (error) throw error;
+  return asPoopEntry(data as unknown as PoopRow);
+}
+
+async function syncEntryTriggerTags(
+  client: SupabaseClient,
+  entryId: UUID,
+  triggerTagIds: UUID[] | undefined,
+): Promise<void> {
+  if (!Array.isArray(triggerTagIds)) return;
+  const uniqueTagIds = Array.from(new Set(triggerTagIds.map((id) => id.trim()).filter((id) => Boolean(id))));
+  const { error: deleteError } = await client
+    .from('poop_entry_trigger_tags')
+    .delete()
+    .eq('entry_id', entryId);
+  if (deleteError) throw deleteError;
+  if (uniqueTagIds.length === 0) return;
+  const { error: insertError } = await client
+    .from('poop_entry_trigger_tags')
+    .insert(uniqueTagIds.map((triggerTagId) => ({
+      entry_id: entryId,
+      trigger_tag_id: triggerTagId,
+    })));
+  if (insertError) throw insertError;
 }
 
 async function requireUserId(client: SupabaseClient): Promise<UUID> {
@@ -508,12 +604,12 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
       const me = await resolveUserId(client, userId);
       const { data, error } = await client
         .from('poop_entries')
-        .select('id,user_id,occurred_at,bristol_type,rating,volume,note,latitude,longitude,location_source')
+        .select(POOP_ENTRY_SELECT)
         .eq('user_id', me)
         .order('occurred_at', { ascending: false })
         .limit(limit);
       if (error) throw error;
-      return (data ?? []).map((row) => asPoopEntry(row as PoopRow));
+      return (data ?? []).map((row) => asPoopEntry(row as unknown as PoopRow));
     },
 
     async createMine(input: NewPoopEntryInput, userId?: UUID): Promise<PoopEntry> {
@@ -531,15 +627,17 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
           longitude: Number.isFinite(input.longitude) ? input.longitude : null,
           location_source: input.locationSource ?? null,
         })
-        .select('id,user_id,occurred_at,bristol_type,rating,volume,note,latitude,longitude,location_source')
+        .select('id,user_id')
         .single();
       if (error) throw error;
-      return asPoopEntry(data as PoopRow);
+      const entryId = String((data as { id: string }).id);
+      await syncEntryTriggerTags(client, entryId, input.triggerTagIds ?? []);
+      return getPoopEntryById(client, entryId, me);
     },
 
     async updateMine(
       entryId: UUID,
-      input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'volume' | 'note' | 'latitude' | 'longitude' | 'locationSource'>>,
+      input: Partial<Pick<NewPoopEntryInput, 'occurredAt' | 'bristolType' | 'rating' | 'volume' | 'note' | 'latitude' | 'longitude' | 'locationSource' | 'triggerTagIds'>>,
       userId?: UUID
     ): Promise<PoopEntry> {
       const me = await resolveUserId(client, userId);
@@ -568,16 +666,35 @@ export function createSupabasePoopService(client: SupabaseClient): PoopService {
         .update(updatePayload)
         .eq('id', entryId)
         .eq('user_id', me)
-        .select('id,user_id,occurred_at,bristol_type,rating,volume,note,latitude,longitude,location_source')
+        .select('id,user_id')
         .single();
       if (error) throw error;
-      return asPoopEntry(data as PoopRow);
+      await syncEntryTriggerTags(client, entryId, input.triggerTagIds);
+      return getPoopEntryById(client, String((data as { id: string }).id), me);
     },
 
     async deleteMine(entryId: UUID, userId?: UUID): Promise<void> {
       const me = await resolveUserId(client, userId);
       const { error } = await client.from('poop_entries').delete().eq('id', entryId).eq('user_id', me);
       if (error) throw error;
+    },
+  };
+}
+
+export function createSupabaseTriggerTagService(client: SupabaseClient): TriggerTagService {
+  return {
+    async listAvailable(userId?: UUID): Promise<TriggerTag[]> {
+      const me = await resolveUserId(client, userId);
+      const { data, error } = await client
+        .from('trigger_tags')
+        .select('id,key,label,normalized_label,category,is_system,created_by,canonical_tag_id,active,sort_order')
+        .eq('active', true)
+        .or(`is_system.eq.true,created_by.eq.${me}`)
+        .order('category', { ascending: true })
+        .order('sort_order', { ascending: true })
+        .order('label', { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((row) => asTriggerTag(row as TriggerTagRow));
     },
   };
 }

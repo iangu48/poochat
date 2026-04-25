@@ -5,6 +5,7 @@ import type { PoopEntry } from '../../../types/domain';
 import { styles } from '../../styles';
 import { getThemePalette, type ThemeMode } from '../../../theme';
 import { BristolTypeChip } from './EntryVisuals';
+import { TriggerTagList } from './TriggerTagList';
 import { formatEntryTimestamp, getRatingColor, getRatingDayStyle, getRatingEmoji, getRatingEmotion, getVolumeEmoji, getVolumeShortLabel, type CalendarCell } from '../utils';
 
 type Props = {
@@ -127,6 +128,7 @@ export function MonthOverviewSection(props: Props) {
                 <Text style={[styles.selectedDayEntryMeta, { color: colors.text }]}>
                   {getVolumeEmoji(Number(entry.volume))} {getVolumeShortLabel(Number(entry.volume))}
                 </Text>
+                <TriggerTagList themeMode={themeMode} tags={entry.triggerTags} maxVisible={3} />
                 <Text style={[styles.selectedDayEntryNote, { color: colors.mutedText }]} numberOfLines={2}>
                   {entry.note?.trim() || 'No note'}
                 </Text>

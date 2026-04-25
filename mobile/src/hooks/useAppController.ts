@@ -10,6 +10,7 @@ import {
   createSupabaseLeaderboardService,
   createSupabasePoopService,
   createSupabaseProfileService,
+  createSupabaseTriggerTagService,
 } from '../services/supabase';
 import type {
   FeedItem,
@@ -20,6 +21,7 @@ import type {
   LeaderboardRow,
   PoopEntry,
   Profile,
+  TriggerTag,
 } from '../types/domain';
 import type { Tab } from '../screens/TabBar';
 
@@ -51,6 +53,7 @@ export function useAppController() {
   const feedService = useMemo(() => createSupabaseFeedService(supabase), []);
   const friendsService = useMemo(() => createSupabaseFriendsService(supabase), []);
   const leaderboardService = useMemo(() => createSupabaseLeaderboardService(supabase), []);
+  const triggerTagService = useMemo(() => createSupabaseTriggerTagService(supabase), []);
   // Chat is intentionally disabled indefinitely. Keep it out of controller setup and startup work.
 
   const [tab, setTab] = useState<Tab>('home');
@@ -76,6 +79,8 @@ export function useAppController() {
   const [rating, setRating] = useState('3');
   const [volume, setVolume] = useState('2');
   const [note, setNote] = useState('');
+  const [availableTriggerTags, setAvailableTriggerTags] = useState<TriggerTag[]>([]);
+  const [selectedTriggerTagIds, setSelectedTriggerTagIds] = useState<string[]>([]);
   const [entryDate, setEntryDate] = useState(formatDateInput(new Date()));
   const [entryTime, setEntryTime] = useState(formatTimeInput(new Date()));
   const [showEntryComposer, setShowEntryComposer] = useState(false);
@@ -165,6 +170,8 @@ export function useAppController() {
     if (!session) {
       setMyProfile(null);
       setEntries([]);
+      setAvailableTriggerTags([]);
+      setSelectedTriggerTagIds([]);
       setFeedItems([]);
       setFeedCommentsByEntry({});
       setFeedReactionsByEntry({});
@@ -193,7 +200,7 @@ export function useAppController() {
         setProfilesById((prev) => ({ ...prev, [profile.id]: profile }));
       }
       if (profile) {
-        await Promise.all([refreshEntries(), refreshFeed(), refreshFriends()]);
+        await Promise.all([refreshEntries(), refreshFeed(), refreshFriends(), refreshTriggerTags()]);
         await Promise.all([
           refreshAccountRankings(profile.id),
           loadAccountLeaderboard(profile.id, selectedLeaderboardYear),
@@ -218,6 +225,15 @@ export function useAppController() {
     } finally {
       await waitForMinimumDuration(startedAt, options.minDurationMs);
       setLoadingEntries(false);
+    }
+  }
+
+  async function refreshTriggerTags(): Promise<void> {
+    try {
+      const tags = await triggerTagService.listAvailable(currentUserId);
+      setAvailableTriggerTags(tags);
+    } catch (error) {
+      console.warn('[trigger-tags] failed loading trigger tags', error);
     }
   }
 
@@ -505,6 +521,7 @@ export function useAppController() {
           rating: ratingValue as 1 | 2 | 3 | 4 | 5,
           volume: volumeValue as 0 | 1 | 2 | 3 | 4,
           note: note.trim() || undefined,
+          triggerTagIds: selectedTriggerTagIds,
         }, currentUserId);
       } else {
         const currentLocation = entryComposerLocation ?? await getCurrentCoordinates();
@@ -517,9 +534,11 @@ export function useAppController() {
           latitude: currentLocation?.latitude,
           longitude: currentLocation?.longitude,
           locationSource: currentLocation?.source,
+          triggerTagIds: selectedTriggerTagIds,
         }, currentUserId);
       }
       setNote('');
+      setSelectedTriggerTagIds([]);
       setEditingEntryId(null);
       setEntryComposerLocation(null);
       setShowEntryComposer(false);
@@ -538,6 +557,7 @@ export function useAppController() {
     setRating('3');
     setVolume('2');
     setNote('');
+    setSelectedTriggerTagIds([]);
     const now = new Date();
     setEntryDate(formatDateInput(now));
     setEntryTime(formatTimeInput(now));
@@ -558,6 +578,7 @@ export function useAppController() {
     setRating(String(entry.rating));
     setVolume(String(entry.volume));
     setNote(entry.note ?? '');
+    setSelectedTriggerTagIds(entry.triggerTags.map((tag) => tag.id));
     const occurredAtDate = new Date(entry.occurredAt);
     setEntryDate(formatDateInput(occurredAtDate));
     setEntryTime(formatTimeInput(occurredAtDate));
@@ -839,6 +860,9 @@ export function useAppController() {
     setVolume,
     note,
     setNote,
+    availableTriggerTags,
+    selectedTriggerTagIds,
+    setSelectedTriggerTagIds,
     entryDate,
     setEntryDate,
     entryTime,
